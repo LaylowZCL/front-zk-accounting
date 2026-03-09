@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Novos Endpoints</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            border-color: #28a745;
+            background-color: #d4edda;
+        }
+        .error {
+            border-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .info {
+            border-color: #17a2b8;
+            background-color: #d1ecf1;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #28a745;
+            color: white;
+        }
+        .status.error {
+            background: #dc3545;
+            color: white;
+        }
+        .status.pending {
+            background: #ffc107;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste dos Novos Endpoints Implementados</h1>
+    <p><strong>URL Base:</strong> <code>http://localhost:8081/api/v1</code></p>
+
+    <!-- Teste de Update Receipt -->
+    <div class="test-section">
+        <h2>1. Atualizar Recibo</h2>
+        <button class="test-button" onclick="testUpdateReceipt()">Testar Update Receipt</button>
+        <span id="update-receipt-status" class="status pending">Pendente</span>
+        <div id="update-receipt-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <!-- Teste de Create Payment -->
+    <div class="test-section">
+        <h2>2. Criar Pagamento</h2>
+        <button class="test-button" onclick="testCreatePayment()">Testar Create Payment</button>
+        <span id="create-payment-status" class="status pending">Pendente</span>
+        <div id="create-payment-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <!-- Teste de Auth Register -->
+    <div class="test-section">
+        <h2>3. Registrar Usuário</h2>
+        <button class="test-button" onclick="testAuthRegister()">Testar Auth Register</button>
+        <span id="auth-register-status" class="status pending">Pendente</span>
+        <div id="auth-register-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <!-- Teste de Change Password -->
+    <div class="test-section">
+        <h2>4. Alterar Senha</h2>
+        <button class="test-button" onclick="testChangePassword()">Testar Change Password</button>
+        <span id="change-password-status" class="status pending">Pendente</span>
+        <div id="change-password-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8081/api/v1';
+        const TEST_TOKEN = '2OqqL49sgOVTq4Zy8WvCJd6XdnhKYKNyOSoa751844e740e7';
+
+        function updateStatus(elementId, status, text = '') {
+            const element = document.getElementById(elementId);
+            element.className = `status ${status}`;
+            element.textContent = text || status.charAt(0).toUpperCase() + status.slice(1);
+        }
+
+        function updateResult(elementId, result, isSuccess = null) {
+            const element = document.getElementById(elementId);
+            element.textContent = result;
+            element.className = `result ${isSuccess === true ? 'success' : isSuccess === false ? 'error' : 'info'}`;
+        }
+
+        async function makeRequest(endpoint, options = {}) {
+            const url = `${API_BASE}${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${TEST_TOKEN}`
+                }
+            };
+
+            const finalOptions = {
+                ...defaultOptions,
+                ...options,
+                headers: {
+                    ...defaultOptions.headers,
+                    ...options.headers
+                }
+            };
+
+            try {
+                const response = await fetch(url, finalOptions);
+                const text = await response.text();
+                
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    data = text;
+                }
+
+                return {
+                    ok: response.ok,
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data,
+                    rawText: text
+                };
+            } catch (error) {
+                return {
+                    ok: false,
+                    error: error.message,
+                    data: null
+                };
+            }
+        }
+
+        async function testUpdateReceipt() {
+            updateStatus('update-receipt-status', 'pending', 'Testando...');
+            
+            const payload = {
+                notes: 'Recibo atualizado via teste - ' + new Date().toISOString()
+            };
+
+            const result = await makeRequest('/workspace/receipts/1', {
+                method: 'PATCH',
+                body: JSON.stringify(payload)
+            });
+
+            if (result.ok) {
+                const successInfo = `✅ UPDATE RECEBER FUNCIONANDO!
+================================
+Status: ${result.status}
+Response: ${JSON.stringify(result.data, null, 2)}
+
+📝 Payload enviado:
+${JSON.stringify(payload, null, 2)}
+
+✅ Função updateReceipt() implementada com sucesso!`;
+                updateResult('update-receipt-result', successInfo);
+                updateStatus('update-receipt-status', 'success', 'OK');
+            } else {
+                updateResult('update-receipt-result', JSON.stringify(result, null, 2));
+                updateStatus('update-receipt-status', 'error', 'Erro');
+            }
+        }
+
+        async function testCreatePayment() {
+            updateStatus('create-payment-status', 'pending', 'Testando...');
+            
+            const payload = {
+                clientId: 1,
+                amount: 150.00,
+                paymentMethod: 'bank_transfer',
+                paymentDate: '2026-03-08',
+                status: 'completed',
+                notes: 'Pagamento teste via API'
+            };
+
+            const result = await makeRequest('/workspace/payments', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            if (result.ok) {
+                const successInfo = `✅ CREATE PAYMENT FUNCIONANDO!
+==================================
+Status: ${result.status}
+Response: ${JSON.stringify(result.data, null, 2)}
+
+📝 Payload enviado:
+${JSON.stringify(payload, null, 2)}
+
+✅ Função createPayment() implementada com sucesso!`;
+                updateResult('create-payment-result', successInfo);
+                updateStatus('create-payment-status', 'success', 'OK');
+            } else {
+                updateResult('create-payment-result', JSON.stringify(result, null, 2));
+                updateStatus('create-payment-status', 'error', 'Erro');
+            }
+        }
+
+        async function testAuthRegister() {
+            updateStatus('auth-register-status', 'pending', 'Testando...');
+            
+            const payload = {
+                name: 'Usuário Teste ' + Math.floor(Math.random() * 1000),
+                email: `teste.${Math.floor(Math.random() * 10000)}@exemplo.com`,
+                password: 'senha123456',
+                company_name: 'Empresa Teste',
+                billing_email: 'financeiro@empresateste.com'
+            };
+
+            const result = await makeRequest('/auth/register', {
+                method: 'POST',
+                body: JSON.stringify(payload),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (result.ok) {
+                const successInfo = `✅ AUTH REGISTER FUNCIONANDO!
+===================================
+Status: ${result.status}
+Response: ${JSON.stringify(result.data, null, 2)}
+
+📝 Payload enviado:
+${JSON.stringify(payload, null, 2)}
+
+✅ Função authRegister() implementada com sucesso!`;
+                updateResult('auth-register-result', successInfo);
+                updateStatus('auth-register-status', 'success', 'OK');
+            } else {
+                updateResult('auth-register-result', JSON.stringify(result, null, 2));
+                updateStatus('auth-register-status', 'error', 'Erro');
+            }
+        }
+
+        async function testChangePassword() {
+            updateStatus('change-password-status', 'pending', 'Testando...');
+            
+            const payload = {
+                current_password: '20002004',
+                new_password: 'novaSenha123456',
+                confirm_password: 'novaSenha123456'
+            };
+
+            const result = await makeRequest('/workspace/security/change-password', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            if (result.ok) {
+                const successInfo = `✅ CHANGE PASSWORD FUNCIONANDO!
+=====================================
+Status: ${result.status}
+Response: ${JSON.stringify(result.data, null, 2)}
+
+📝 Payload enviado:
+${JSON.stringify(payload, null, 2)}
+
+⚠️ ATENÇÃO: Senha realmente alterada! Use a nova senha: novaSenha123456
+
+✅ Função changePassword() implementada com sucesso!`;
+                updateResult('change-password-result', successInfo);
+                updateStatus('change-password-status', 'success', 'OK');
+            } else {
+                updateResult('change-password-result', JSON.stringify(result, null, 2));
+                updateStatus('change-password-status', 'error', 'Erro');
+            }
+        }
+
+        // Teste automático ao carregar a página
+        window.addEventListener('load', () => {
+            console.log('🧪 Página de teste dos novos endpoints carregada!');
+        });
+    </script>
+</body>
+</html>

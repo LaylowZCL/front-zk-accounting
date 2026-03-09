@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Logout - Billing Bliss</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            border-color: #28a745;
+            background-color: #d4edda;
+        }
+        .error {
+            border-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .info {
+            border-color: #17a2b8;
+            background-color: #d1ecf1;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #28a745;
+            color: white;
+        }
+        .status.error {
+            background: #dc3545;
+            color: white;
+        }
+        .status.pending {
+            background: #ffc107;
+            color: black;
+        }
+        .user-info {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔐 Teste de Funcionalidade do Usuário</h1>
+    <p><strong>URL Base:</strong> <code>http://localhost:8081/api/v1</code></p>
+
+    <!-- Informações do Usuário -->
+    <div class="test-section">
+        <h2>1. Informações do Usuário Logado</h2>
+        <button class="test-button" onclick="testUserInfo()">Verificar Usuário</button>
+        <span id="user-status" class="status pending">Pendente</span>
+        <div id="user-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <!-- Teste de Logout -->
+    <div class="test-section">
+        <h2>2. Teste de Logout</h2>
+        <button class="test-button" onclick="testLogout()">Testar Logout</button>
+        <span id="logout-status" class="status pending">Pendente</span>
+        <div id="logout-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <!-- Verificação pós-logout -->
+    <div class="test-section">
+        <h2>3. Verificação Pós-Logout</h2>
+        <button class="test-button" onclick="testPostLogout()">Verificar se está deslogado</button>
+        <span id="postlogout-status" class="status pending">Pendente</span>
+        <div id="postlogout-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <!-- Teste de Login -->
+    <div class="test-section">
+        <h2>4. Teste de Login</h2>
+        <button class="test-button" onclick="testLogin()">Fazer Login Novamente</button>
+        <span id="login-status" class="status pending">Pendente</span>
+        <div id="login-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8081/api/v1';
+        const TEST_TOKEN = '2OqqL49sgOVTq4Zy8WvCJd6XdnhKYKNyOSoa751844e740e7';
+        
+        let currentToken = TEST_TOKEN;
+
+        function updateStatus(elementId, status, text = '') {
+            const element = document.getElementById(elementId);
+            element.className = `status ${status}`;
+            element.textContent = text || status.charAt(0).toUpperCase() + status.slice(1);
+        }
+
+        function updateResult(elementId, result, isSuccess = null) {
+            const element = document.getElementById(elementId);
+            element.textContent = result;
+            element.className = `result ${isSuccess === true ? 'success' : isSuccess === false ? 'error' : 'info'}`;
+        }
+
+        async function makeRequest(endpoint, options = {}) {
+            const url = `${API_BASE}${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(currentToken && { 'Authorization': `Bearer ${currentToken}` })
+                }
+            };
+
+            const finalOptions = {
+                ...defaultOptions,
+                ...options,
+                headers: {
+                    ...defaultOptions.headers,
+                    ...options.headers
+                }
+            };
+
+            try {
+                const response = await fetch(url, finalOptions);
+                const text = await response.text();
+                
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    data = text;
+                }
+
+                return {
+                    ok: response.ok,
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data,
+                    rawText: text
+                };
+            } catch (error) {
+                return {
+                    ok: false,
+                    error: error.message,
+                    data: null
+                };
+            }
+        }
+
+        async function testUserInfo() {
+            updateStatus('user-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/auth/me');
+
+            if (result.ok && result.data && result.data.user) {
+                const user = result.data.user;
+                const userInfo = `
+📋 INFORMAÇÕES DO USUÁRIO:
+=====================
+Nome: ${user.name}
+Email: ${user.email}
+ID: ${user.id}
+Account ID: ${user.account_id}
+Status: ${user.status || 'N/A'}
+Roles: ${user.roles ? user.roles.join(', ') : 'N/A'}
+Permissions: ${user.permissions ? user.permissions.join(', ') : 'N/A'}
+Platform Admin: ${user.is_platform_admin ? 'Sim' : 'Não'}
+
+🎭 CÁLCULO DE DISPLAY NAME:
+Nome completo: ${user.name}
+Primeiro nome: ${user.name?.split(' ')[0] || 'User'}
+Role exibida: ${user.roles?.includes('platform_admin') ? 'Administrator' : 
+               user.roles?.includes('owner') ? 'Owner' : 
+               user.roles?.includes('employee') ? 'Employee' : 'User'}
+                `;
+                updateResult('user-result', userInfo);
+                updateStatus('user-status', 'success', 'OK');
+            } else {
+                updateResult('user-result', JSON.stringify(result, null, 2));
+                updateStatus('user-status', 'error', 'Erro');
+            }
+        }
+
+        async function testLogout() {
+            updateStatus('logout-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/auth/logout', {
+                method: 'POST'
+            });
+
+            if (result.ok) {
+                currentToken = null;
+                updateResult('logout-result', `✅ Logout realizado com sucesso!\n\n${JSON.stringify(result, null, 2)}`);
+                updateStatus('logout-status', 'success', 'OK');
+            } else {
+                updateResult('logout-result', JSON.stringify(result, null, 2));
+                updateStatus('logout-status', 'error', 'Erro');
+            }
+        }
+
+        async function testPostLogout() {
+            updateStatus('postlogout-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/auth/me');
+
+            if (!result.ok || result.status === 401) {
+                updateResult('postlogout-result', `✅ Usuário deslogado com sucesso!\n\nStatus: ${result.status}\n${JSON.stringify(result, null, 2)}`);
+                updateStatus('postlogout-status', 'success', 'OK');
+            } else {
+                updateResult('postlogout-result', `❌ Usuário ainda está logado!\n\n${JSON.stringify(result, null, 2)}`);
+                updateStatus('postlogout-status', 'error', 'Ainda logado');
+            }
+        }
+
+        async function testLogin() {
+            updateStatus('login-status', 'pending', 'Testando...');
+            
+            const payload = {
+                email: "fernandozucula@gmail.com",
+                password: "20002004"
+            };
+
+            const result = await makeRequest('/auth/login', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            if (result.ok && result.data && result.data.token) {
+                currentToken = result.data.token;
+                updateResult('login-result', `✅ Login realizado com sucesso!\nNovo token: ${currentToken.substring(0, 20)}...\n\n${JSON.stringify(result.data, null, 2)}`);
+                updateStatus('login-status', 'success', 'OK');
+            } else {
+                updateResult('login-result', JSON.stringify(result, null, 2));
+                updateStatus('login-status', 'error', 'Erro');
+            }
+        }
+
+        // Teste automático ao carregar a página
+        window.addEventListener('load', () => {
+            console.log('🔐 Página de teste de logout carregada!');
+        });
+    </script>
+</body>
+</html>

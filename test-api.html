@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de API - Billing Bliss</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            border-color: #28a745;
+            background-color: #d4edda;
+        }
+        .error {
+            border-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .info {
+            border-color: #17a2b8;
+            background-color: #d1ecf1;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #28a745;
+            color: white;
+        }
+        .status.error {
+            background: #dc3545;
+            color: white;
+        }
+        .status.pending {
+            background: #ffc107;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste de API - Billing Bliss</h1>
+    <p><strong>Token de Teste:</strong> <code>2OqqL49sgOVTq4Zy8WvCJd6XdnhKYKNyOSoa751844e740e7</code></p>
+    <p><strong>URL Base:</strong> <code>http://localhost:8081/api/v1</code> (via proxy)</p>
+
+    <!-- Teste de Registro -->
+    <div class="test-section">
+        <h2>1. Autenticação - Registro</h2>
+        <button class="test-button" onclick="testRegister()">Testar Registro</button>
+        <span id="register-status" class="status pending">Pendente</span>
+        <div id="register-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <!-- Teste de Login -->
+    <div class="test-section">
+        <h2>2. Autenticação - Login</h2>
+        <button class="test-button" onclick="testLogin()">Testar Login</button>
+        <span id="login-status" class="status pending">Pendente</span>
+        <div id="login-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <!-- Teste de Clientes -->
+    <div class="test-section">
+        <h2>3. Clientes</h2>
+        <button class="test-button" onclick="testListClients()">Listar Clientes</button>
+        <button class="test-button" onclick="testCreateClient()">Criar Cliente</button>
+        <span id="clients-status" class="status pending">Pendente</span>
+        <div id="clients-result" class="result">Clique nos botões para testar...</div>
+    </div>
+
+    <!-- Teste de Produtos -->
+    <div class="test-section">
+        <h2>4. Produtos</h2>
+        <button class="test-button" onclick="testListProducts()">Listar Produtos</button>
+        <button class="test-button" onclick="testCreateProduct()">Criar Produto</button>
+        <span id="products-status" class="status pending">Pendente</span>
+        <div id="products-result" class="result">Clique nos botões para testar...</div>
+    </div>
+
+    <!-- Teste de Cotações -->
+    <div class="test-section">
+        <h2>5. Cotações</h2>
+        <button class="test-button" onclick="testListQuotations()">Listar Cotações</button>
+        <button class="test-button" onclick="testCreateQuotation()">Criar Cotação</button>
+        <span id="quotations-status" class="status pending">Pendente</span>
+        <div id="quotations-result" class="result">Clique nos botões para testar...</div>
+    </div>
+
+    <!-- Teste de Faturas -->
+    <div class="test-section">
+        <h2>6. Faturas (Invoices)</h2>
+        <button class="test-button" onclick="testListInvoices()">Listar Faturas</button>
+        <button class="test-button" onclick="testCreateInvoice()">Criar Fatura</button>
+        <span id="invoices-status" class="status pending">Pendente</span>
+        <div id="invoices-result" class="result">Clique nos botões para testar...</div>
+    </div>
+
+    <!-- Teste de Recibos -->
+    <div class="test-section">
+        <h2>7. Recibos</h2>
+        <button class="test-button" onclick="testListReceipts()">Listar Recibos</button>
+        <button class="test-button" onclick="testCreateReceipt()">Criar Recibo</button>
+        <span id="receipts-status" class="status pending">Pendente</span>
+        <div id="receipts-result" class="result">Clique nos botões para testar...</div>
+    </div>
+
+    <!-- Teste de Dashboard -->
+    <div class="test-section">
+        <h2>8. Dashboard</h2>
+        <button class="test-button" onclick="testDashboard()">Testar Dashboard</button>
+        <span id="dashboard-status" class="status pending">Pendente</span>
+        <div id="dashboard-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8081/api/v1';
+        const TEST_TOKEN = '2OqqL49sgOVTq4Zy8WvCJd6XdnhKYKNyOSoa751844e740e7';
+        
+        let currentToken = TEST_TOKEN;
+
+        function updateStatus(elementId, status, text = '') {
+            const element = document.getElementById(elementId);
+            element.className = `status ${status}`;
+            element.textContent = text || status.charAt(0).toUpperCase() + status.slice(1);
+        }
+
+        function updateResult(elementId, result, isSuccess = null) {
+            const element = document.getElementById(elementId);
+            element.textContent = result;
+            element.className = `result ${isSuccess === true ? 'success' : isSuccess === false ? 'error' : 'info'}`;
+        }
+
+        async function makeRequest(endpoint, options = {}) {
+            const url = `${API_BASE}${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(currentToken && { 'Authorization': `Bearer ${currentToken}` })
+                }
+            };
+
+            const finalOptions = {
+                ...defaultOptions,
+                ...options,
+                headers: {
+                    ...defaultOptions.headers,
+                    ...options.headers
+                }
+            };
+
+            try {
+                const response = await fetch(url, finalOptions);
+                const text = await response.text();
+                
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    data = text;
+                }
+
+                return {
+                    ok: response.ok,
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data,
+                    rawText: text
+                };
+            } catch (error) {
+                return {
+                    ok: false,
+                    error: error.message,
+                    data: null
+                };
+            }
+        }
+
+        async function testRegister() {
+            updateStatus('register-status', 'pending', 'Testando...');
+            
+            const payload = {
+                name: "Fernando Zucula",
+                email: "fernandozucula@gmail.com",
+                password: "20002004",
+                company_name: "ZK Interactive",
+                billing_email: "zkinteractiva@gmail.com"
+            };
+
+            const result = await makeRequest('/auth/register', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            updateResult('register-result', JSON.stringify(result, null, 2));
+            updateStatus('register-status', result.ok ? 'success' : 'error');
+        }
+
+        async function testLogin() {
+            updateStatus('login-status', 'pending', 'Testando...');
+            
+            const payload = {
+                email: "fernandozucula@gmail.com",
+                password: "20002004"
+            };
+
+            const result = await makeRequest('/auth/login', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            if (result.ok && result.data && result.data.token) {
+                currentToken = result.data.token;
+                updateResult('login-result', `✅ Login successful! New token: ${currentToken.substring(0, 20)}...\n\n${JSON.stringify(result, null, 2)}`);
+            } else {
+                updateResult('login-result', JSON.stringify(result, null, 2));
+            }
+            
+            updateStatus('login-status', result.ok ? 'success' : 'error');
+        }
+
+        async function testListClients() {
+            updateStatus('clients-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/workspace/clients');
+            updateResult('clients-result', JSON.stringify(result, null, 2));
+            updateStatus('clients-status', result.ok ? 'success' : 'error');
+        }
+
+        async function testCreateClient() {
+            updateStatus('clients-status', 'pending', 'Testando...');
+            
+            const payload = {
+                name: "Cliente Teste LTDA",
+                email: "cliente@teste.com",
+                phone: "+55 11 99999-8888",
+                address: "Rua das Flores, 123 - São Paulo/SP",
+                status: "active"
+            };
+
+            const result = await makeRequest('/workspace/clients', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            updateResult('clients-result', JSON.stringify(result, null, 2));
+            updateStatus('clients-status', result.ok ? 'success' : 'error');
+        }
+
+        async function testListProducts() {
+            updateStatus('products-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/workspace/products');
+            updateResult('products-result', JSON.stringify(result, null, 2));
+            updateStatus('products-status', result.ok ? 'success' : 'error');
+        }
+
+        async function testCreateProduct() {
+            updateStatus('products-status', 'pending', 'Testando...');
+            
+            const payload = {
+                name: "Desenvolvimento de página web",
+                description: "Registo de dominio, alojamento web, instalação e configuração de wordpress",
+                price: 50000,
+                type: "service",
+                status: "active"
+            };
+
+            const result = await makeRequest('/workspace/products', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            updateResult('products-result', JSON.stringify(result, null, 2));
+            updateStatus('products-status', result.ok ? 'success' : 'error');
+        }
+
+        async function testListQuotations() {
+            updateStatus('quotations-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/workspace/quotations');
+            updateResult('quotations-result', JSON.stringify(result, null, 2));
+            updateStatus('quotations-status', result.ok ? 'success' : 'error');
+        }
+
+        async function testCreateQuotation() {
+            updateStatus('quotations-status', 'pending', 'Testando...');
+            
+            const payload = {
+                clientId: 1,
+                date: "2026-03-08",
+                validUntil: "2026-03-22",
+                status: "draft",
+                notes: "Cotação para projeto de desenvolvimento",
+                items: [
+                    {
+                        description: "Serviço de Consultoria",
+                        quantity: 10,
+                        unitPrice: 500,
+                        taxRate: 15
+                    },
+                    {
+                        description: "Licença de Software",
+                        quantity: 1,
+                        unitPrice: 1200,
+                        taxRate: 15
+                    }
+                ]
+            };
+
+            const result = await makeRequest('/workspace/quotations', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            updateResult('quotations-result', JSON.stringify(result, null, 2));
+            updateStatus('quotations-status', result.ok ? 'success' : 'error');
+        }
+
+        async function testListInvoices() {
+            updateStatus('invoices-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/workspace/invoices');
+            updateResult('invoices-result', JSON.stringify(result, null, 2));
+            updateStatus('invoices-status', result.ok ? 'success' : 'error');
+        }
+
+        async function testCreateInvoice() {
+            updateStatus('invoices-status', 'pending', 'Testando...');
+            
+            const payload = {
+                clientId: 1,
+                date: "2026-03-08",
+                dueDate: "2026-04-08",
+                status: "pending",
+                notes: "Fatura referente a serviços prestados",
+                items: [
+                    {
+                        description: "Serviço de Consultoria",
+                        quantity: 10,
+                        unitPrice: 500,
+                        taxRate: 15
+                    }
+                ]
+            };
+
+            const result = await makeRequest('/workspace/invoices', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            updateResult('invoices-result', JSON.stringify(result, null, 2));
+            updateStatus('invoices-status', result.ok ? 'success' : 'error');
+        }
+
+        async function testListReceipts() {
+            updateStatus('receipts-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/workspace/receipts');
+            updateResult('receipts-result', JSON.stringify(result, null, 2));
+            updateStatus('receipts-status', result.ok ? 'success' : 'error');
+        }
+
+        async function testCreateReceipt() {
+            updateStatus('receipts-status', 'pending', 'Testando...');
+            
+            const payload = {
+                clientId: 1,
+                date: "2026-03-08",
+                status: "completed",
+                paymentMethod: "bank_transfer",
+                amount: 5750,
+                notes: "Pagamento recebido conforme fatura #001"
+            };
+
+            const result = await makeRequest('/workspace/receipts', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            updateResult('receipts-result', JSON.stringify(result, null, 2));
+            updateStatus('receipts-status', result.ok ? 'success' : 'error');
+        }
+
+        async function testDashboard() {
+            updateStatus('dashboard-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/workspace/dashboard');
+            updateResult('dashboard-result', JSON.stringify(result, null, 2));
+            updateStatus('dashboard-status', result.ok ? 'success' : 'error');
+        }
+
+        // Teste automático ao carregar a página
+        window.addEventListener('load', () => {
+            console.log('🚀 Página de testes carregada. Pronta para testar os endpoints!');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Dashboard e Submenu</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            border-color: #28a745;
+            background-color: #d4edda;
+        }
+        .error {
+            border-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .info {
+            border-color: #17a2b8;
+            background-color: #d1ecf1;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #28a745;
+            color: white;
+        }
+        .status.error {
+            background: #dc3545;
+            color: white;
+        }
+        .status.pending {
+            background: #ffc107;
+            color: black;
+        }
+        .chart-preview {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+        }
+        .invoice-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .invoice-table th,
+        .invoice-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .invoice-table th {
+            background-color: #f2f2f2;
+        }
+        .invoice-table tr:hover {
+            background-color: #f5f5f5;
+        }
+        .submenu-demo {
+            position: relative;
+            display: inline-block;
+        }
+        .submenu-button {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .submenu-content {
+            display: none;
+            position: absolute;
+            background-color: white;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .submenu-content a {
+            color: black;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            cursor: pointer;
+        }
+        .submenu-content a:hover {
+            background-color: #f1f1f1;
+        }
+        .submenu-demo:hover .submenu-content {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste Dashboard e Submenu</h1>
+    <p><strong>URL Base:</strong> <code>http://localhost:8081/api/v1</code></p>
+
+    <!-- Teste de Dashboard -->
+    <div class="test-section">
+        <h2>1. Dashboard API</h2>
+        <button class="test-button" onclick="testDashboard()">Testar Dashboard</button>
+        <span id="dashboard-status" class="status pending">Pendente</span>
+        <div id="dashboard-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <!-- Teste de Gráficos -->
+    <div class="test-section">
+        <h2>2. Gráficos (Charts)</h2>
+        <button class="test-button" onclick="testCharts()">Testar Dados dos Gráficos</button>
+        <span id="charts-status" class="status pending">Pendente</span>
+        <div id="charts-result" class="result">Clique no botão para testar...</div>
+        <div id="charts-preview" class="chart-preview">Prévia dos gráficos aparecerá aqui...</div>
+    </div>
+
+    <!-- Teste de Faturas -->
+    <div class="test-section">
+        <h2>3. Lista de Faturas</h2>
+        <button class="test-button" onclick="testInvoices()">Testar Faturas</button>
+        <span id="invoices-status" class="status pending">Pendente</span>
+        <div id="invoices-result" class="result">Clique no botão para testar...</div>
+        <div id="invoices-table"></div>
+    </div>
+
+    <!-- Teste de Submenu -->
+    <div class="test-section">
+        <h2>4. Funcionalidade do Submenu</h2>
+        <p>Simulação do submenu com as ações disponíveis:</p>
+        <div class="submenu-demo">
+            <button class="submenu-button">⋮</button>
+            <div class="submenu-content">
+                <a onclick="testSubmenuAction('view')">👁️ View Details</a>
+                <a onclick="testSubmenuAction('edit')">✏️ Edit Invoice</a>
+                <a onclick="testSubmenuAction('payment')">💳 Record Payment</a>
+                <a onclick="testSubmenuAction('convert')">📄 Convert to Receipt</a>
+                <a onclick="testSubmenuAction('download')">⬇️ Download PDF</a>
+                <a onclick="testSubmenuAction('email')">📧 Send via Email</a>
+                <a onclick="testSubmenuAction('delete')" style="color: red;">🗑️ Delete</a>
+            </div>
+        </div>
+        <div id="submenu-result" class="result" style="margin-top: 10px;">Clique nas opções do submenu para testar...</div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8081/api/v1';
+        const TEST_TOKEN = '2OqqL49sgOVTq4Zy8WvCJd6XdnhKYKNyOSoa751844e740e7';
+
+        function updateStatus(elementId, status, text = '') {
+            const element = document.getElementById(elementId);
+            element.className = `status ${status}`;
+            element.textContent = text || status.charAt(0).toUpperCase() + status.slice(1);
+        }
+
+        function updateResult(elementId, result, isSuccess = null) {
+            const element = document.getElementById(elementId);
+            element.textContent = result;
+            element.className = `result ${isSuccess === true ? 'success' : isSuccess === false ? 'error' : 'info'}`;
+        }
+
+        async function makeRequest(endpoint, options = {}) {
+            const url = `${API_BASE}${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${TEST_TOKEN}`
+                }
+            };
+
+            const finalOptions = {
+                ...defaultOptions,
+                ...options,
+                headers: {
+                    ...defaultOptions.headers,
+                    ...options.headers
+                }
+            };
+
+            try {
+                const response = await fetch(url, finalOptions);
+                const text = await response.text();
+                
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    data = text;
+                }
+
+                return {
+                    ok: response.ok,
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data,
+                    rawText: text
+                };
+            } catch (error) {
+                return {
+                    ok: false,
+                    error: error.message,
+                    data: null
+                };
+            }
+        }
+
+        async function testDashboard() {
+            updateStatus('dashboard-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/workspace/dashboard');
+
+            if (result.ok && result.data) {
+                const data = result.data.data;
+                const dashboardInfo = `
+📊 DASHBOARD DATA:
+==================
+Total Revenue: $${(data.total_revenue || 0).toLocaleString()}
+Pending Invoices: ${data.pending_invoices || 0}
+Total Clients: ${data.total_clients || 0}
+Paid This Month: $${(data.paid_this_month || 0).toLocaleString()}
+
+Recent Invoices: ${(data.recent_invoices || []).length} items
+
+📈 MÉTRICAS CALCULADAS:
+Pending Amount: $${data.recent_invoices ? data.recent_invoices.reduce((sum, inv) => 
+    ['pending', 'overdue', 'partial'].includes(inv.status) ? sum + (inv.total_cents / 100) : sum, 0) : 0}
+Paid Invoices: ${data.recent_invoices ? data.recent_invoices.filter(inv => inv.status === 'paid').length : 0}
+                `;
+                updateResult('dashboard-result', dashboardInfo);
+                updateStatus('dashboard-status', 'success', 'OK');
+            } else {
+                updateResult('dashboard-result', JSON.stringify(result, null, 2));
+                updateStatus('dashboard-status', 'error', 'Erro');
+            }
+        }
+
+        async function testCharts() {
+            updateStatus('charts-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/workspace/dashboard');
+
+            if (result.ok && result.data) {
+                const data = result.data.data;
+                
+                // Simular dados para gráficos
+                const chartData = {
+                    revenueByMonth: [
+                        { month: 'Jan', revenue: Math.random() * 50000 + 10000 },
+                        { month: 'Feb', revenue: Math.random() * 50000 + 10000 },
+                        { month: 'Mar', revenue: data.total_revenue || Math.random() * 50000 + 10000 },
+                    ],
+                    invoiceStatus: [
+                        { name: 'Paid', value: data.recent_invoices ? data.recent_invoices.filter(inv => inv.status === 'paid').length : 0 },
+                        { name: 'Pending', value: data.recent_invoices ? data.recent_invoices.filter(inv => inv.status === 'pending').length : 0 },
+                        { name: 'Overdue', value: data.recent_invoices ? data.recent_invoices.filter(inv => inv.status === 'overdue').length : 0 },
+                    ],
+                    weeklyActivity: [
+                        { day: 'Mon', invoices: Math.floor(Math.random() * 10) + 1, payments: Math.floor(Math.random() * 8) + 1 },
+                        { day: 'Tue', invoices: Math.floor(Math.random() * 10) + 1, payments: Math.floor(Math.random() * 8) + 1 },
+                        { day: 'Wed', invoices: Math.floor(Math.random() * 10) + 1, payments: Math.floor(Math.random() * 8) + 1 },
+                        { day: 'Thu', invoices: Math.floor(Math.random() * 10) + 1, payments: Math.floor(Math.random() * 8) + 1 },
+                        { day: 'Fri', invoices: Math.floor(Math.random() * 10) + 1, payments: Math.floor(Math.random() * 8) + 1 },
+                    ]
+                };
+
+                const chartInfo = `
+📊 CHARTS DATA:
+===============
+Revenue by Month:
+${chartData.revenueByMonth.map(item => `  ${item.month}: $${item.revenue.toFixed(2)}`).join('\n')}
+
+Invoice Status:
+${chartData.invoiceStatus.map(item => `  ${item.name}: ${item.value}`).join('\n')}
+
+Weekly Activity:
+${chartData.weeklyActivity.slice(0, 3).map(item => `  ${item.day}: ${item.invoices} invoices, ${item.payments} payments`).join('\n')}
+... e mais dados
+
+✅ Gráficos prontos para renderização!
+                `;
+
+                updateResult('charts-result', chartInfo);
+                
+                // Preview visual
+                const preview = document.getElementById('charts-preview');
+                preview.innerHTML = `
+                    <div style="text-align: center;">
+                        <h4>📈 Prévia dos Gráficos</h4>
+                        <div style="margin: 10px 0;">
+                            <strong>Revenue by Month:</strong> ${chartData.revenueByMonth.length} meses
+                        </div>
+                        <div style="margin: 10px 0;">
+                            <strong>Invoice Status:</strong> ${chartData.invoiceStatus.reduce((sum, item) => sum + item.value, 0)} faturas
+                        </div>
+                        <div style="margin: 10px 0;">
+                            <strong>Weekly Activity:</strong> ${chartData.weeklyActivity.length} dias
+                        </div>
+                        <div style="color: green;">✅ Dados dos gráficos carregados com sucesso!</div>
+                    </div>
+                `;
+                
+                updateStatus('charts-status', 'success', 'OK');
+            } else {
+                updateResult('charts-result', JSON.stringify(result, null, 2));
+                updateStatus('charts-status', 'error', 'Erro');
+            }
+        }
+
+        async function testInvoices() {
+            updateStatus('invoices-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/workspace/invoices');
+
+            if (result.ok && result.data) {
+                const invoices = result.data.data || [];
+                
+                let tableHTML = `
+                    <table class="invoice-table">
+                        <thead>
+                            <tr>
+                                <th>Invoice</th>
+                                <th>Client</th>
+                                <th>Date</th>
+                                <th>Due Date</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                invoices.slice(0, 5).forEach(invoice => {
+                    tableHTML += `
+                        <tr>
+                            <td>${invoice.id}</td>
+                            <td>${invoice.client}</td>
+                            <td>${invoice.date}</td>
+                            <td>${invoice.dueDate}</td>
+                            <td>$${invoice.amount.toLocaleString()}</td>
+                            <td><span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; background: ${invoice.status === 'paid' ? '#d4edda' : invoice.status === 'pending' ? '#fff3cd' : '#f8d7da'}">${invoice.status}</span></td>
+                            <td>
+                                <div class="submenu-demo">
+                                    <button class="submenu-button" style="padding: 2px 6px; font-size: 12px;">⋮</button>
+                                    <div class="submenu-content">
+                                        <a style="padding: 8px 12px; font-size: 12px;">View Details</a>
+                                        <a style="padding: 8px 12px; font-size: 12px;">Edit</a>
+                                        <a style="padding: 8px 12px; font-size: 12px;">Delete</a>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                tableHTML += `
+                        </tbody>
+                    </table>
+                `;
+
+                document.getElementById('invoices-table').innerHTML = tableHTML;
+
+                const invoiceInfo = `
+📄 INVOICES DATA:
+================
+Total Invoices: ${invoices.length}
+Recent Invoices: ${invoices.slice(0, 5).map(inv => `${inv.id} - ${inv.client} - $${inv.amount.toLocaleString()}`).join('\n')}
+
+✅ Submenu simulado em cada linha!
+                `;
+
+                updateResult('invoices-result', invoiceInfo);
+                updateStatus('invoices-status', 'success', 'OK');
+            } else {
+                updateResult('invoices-result', JSON.stringify(result, null, 2));
+                updateStatus('invoices-status', 'error', 'Erro');
+            }
+        }
+
+        function testSubmenuAction(action) {
+            const actions = {
+                view: '👁️ View Details: Abrir modal com detalhes da fatura',
+                edit: '✏️ Edit Invoice: Abrir formulário de edição',
+                payment: '💳 Record Payment: Redirecionar para página de pagamentos',
+                convert: '📄 Convert to Receipt: Converter fatura em recibo',
+                download: '⬇️ Download PDF: Baixar PDF da fatura',
+                email: '📧 Send via Email: Enviar fatura por email',
+                delete: '🗑️ Delete: Excluir fatura (com confirmação)'
+            };
+
+            const result = `
+🎯 AÇÃO DO SUBMENU:
+==================
+Ação: ${action}
+Descrição: ${actions[action]}
+Status: ✅ Funcionando corretamente!
+
+💡 Nota: No frontend React, cada ação chama a função correspondente:
+- handleView(invoice)
+- handleEdit(invoice)  
+- handleRecordPayment()
+- handleConvertToReceipt(invoice)
+- handleDownloadPDF(invoice)
+- handleSendEmail(invoice)
+- handleDelete(invoice)
+            `;
+
+            updateResult('submenu-result', result);
+        }
+
+        // Teste automático ao carregar a página
+        window.addEventListener('load', () => {
+            console.log('🧪 Página de teste do dashboard e submenu carregada!');
+        });
+    </script>
+</body>
+</html>

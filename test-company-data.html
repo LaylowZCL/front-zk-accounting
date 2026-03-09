@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Dados da Empresa em Documentos</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            border-color: #28a745;
+            background-color: #d4edda;
+        }
+        .error {
+            border-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .info {
+            border-color: #17a2b8;
+            background-color: #d1ecf1;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #28a745;
+            color: white;
+        }
+        .status.error {
+            background: #dc3545;
+            color: white;
+        }
+        .status.pending {
+            background: #ffc107;
+            color: black;
+        }
+        .document-preview {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .document-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+        }
+        .company-info h2 {
+            color: #4f46e5;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+        }
+        .company-details {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.4;
+        }
+        .company-details div {
+            margin: 2px 0;
+        }
+        .document-info {
+            text-align: right;
+        }
+        .document-id {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .client-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .items-table th, .items-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .items-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        .totals {
+            text-align: right;
+            margin-top: 20px;
+        }
+        .total-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 5px;
+        }
+        .total-label {
+            width: 100px;
+            margin-right: 20px;
+            text-align: right;
+        }
+        .total-amount {
+            width: 100px;
+            text-align: right;
+            font-weight: bold;
+        }
+        .grand-total {
+            border-top: 2px solid #333;
+            padding-top: 10px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏢 Teste Dados da Empresa em Documentos</h1>
+    <p><strong>URL Base:</strong> <code>http://localhost:8081/api/v1</code></p>
+
+    <!-- Teste de Settings -->
+    <div class="test-section">
+        <h2>1. Configurações da Empresa</h2>
+        <button class="test-button" onclick="testCompanySettings()">Testar Settings</button>
+        <span id="settings-status" class="status pending">Pendente</span>
+        <div id="settings-result" class="result">Clique no botão para testar...</div>
+    </div>
+
+    <!-- Preview de Documento -->
+    <div class="test-section">
+        <h2>2. Preview do Documento com Dados da Empresa</h2>
+        <button class="test-button" onclick="generateDocumentPreview()">Gerar Preview</button>
+        <span id="preview-status" class="status pending">Pendente</span>
+        <div id="document-preview"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8081/api/v1';
+        const TEST_TOKEN = '2OqqL49sgOVTq4Zy8WvCJd6XdnhKYKNyOSoa751844e740e7';
+        let companyData = {};
+
+        function updateStatus(elementId, status, text = '') {
+            const element = document.getElementById(elementId);
+            element.className = `status ${status}`;
+            element.textContent = text || status.charAt(0).toUpperCase() + status.slice(1);
+        }
+
+        function updateResult(elementId, result, isSuccess = null) {
+            const element = document.getElementById(elementId);
+            element.textContent = result;
+            element.className = `result ${isSuccess === true ? 'success' : isSuccess === false ? 'error' : 'info'}`;
+        }
+
+        async function makeRequest(endpoint, options = {}) {
+            const url = `${API_BASE}${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${TEST_TOKEN}`
+                }
+            };
+
+            const finalOptions = {
+                ...defaultOptions,
+                ...options,
+                headers: {
+                    ...defaultOptions.headers,
+                    ...options.headers
+                }
+            };
+
+            try {
+                const response = await fetch(url, finalOptions);
+                const text = await response.text();
+                
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    data = text;
+                }
+
+                return {
+                    ok: response.ok,
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data,
+                    rawText: text
+                };
+            } catch (error) {
+                return {
+                    ok: false,
+                    error: error.message,
+                    data: null
+                };
+            }
+        }
+
+        async function testCompanySettings() {
+            updateStatus('settings-status', 'pending', 'Testando...');
+            
+            const result = await makeRequest('/workspace/settings');
+
+            if (result.ok && result.data) {
+                companyData = result.data.data.company || {};
+                
+                const settingsInfo = `✅ COMPANY SETTINGS CARREGADOS!
+===================================
+Nome: ${companyData.name || 'Não configurado'}
+Email: ${companyData.email || 'Não configurado'}
+Telefone: ${companyData.phone || 'Não configurado'}
+Endereço: ${companyData.address || 'Não configurado'}
+NIF: ${companyData.tax_number || 'Não configurado'}
+
+📋 Dados Completos:
+${JSON.stringify(companyData, null, 2)}
+
+✅ Configurações da empresa carregadas com sucesso!`;
+                
+                updateResult('settings-result', settingsInfo);
+                updateStatus('settings-status', 'success', 'OK');
+            } else {
+                updateResult('settings-result', JSON.stringify(result, null, 2));
+                updateStatus('settings-status', 'error', 'Erro');
+            }
+        }
+
+        function generateDocumentPreview() {
+            updateStatus('preview-status', 'pending', 'Gerando...');
+            
+            if (Object.keys(companyData).length === 0) {
+                updateResult('document-preview', '❌ Carregue as configurações da empresa primeiro!');
+                updateStatus('preview-status', 'error', 'Erro');
+                return;
+            }
+
+            const documentHTML = `
+                <div class="document-preview">
+                    <div class="document-header">
+                        <div class="company-info">
+                            <h2>${companyData.name || 'Sua Empresa'}</h2>
+                            <div class="company-details">
+                                ${companyData.address ? `<div>📍 ${companyData.address}</div>` : ''}
+                                ${companyData.tax_number ? `<div>🆔 NIF: ${companyData.tax_number}</div>` : ''}
+                                <div>📧 ${companyData.email || 'empresa@exemplo.com'}</div>
+                                ${companyData.phone ? `<div>📞 ${companyData.phone}</div>` : ''}
+                            </div>
+                        </div>
+                        <div class="document-info">
+                            <div class="document-id">INV-2024-001</div>
+                            <div>Data: ${new Date().toLocaleDateString('pt-BR')}</div>
+                            <div>Vencimento: ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR')}</div>
+                            <div style="margin-top: 10px;">
+                                <span style="background: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">PENDING</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="client-info">
+                        <strong>Cliente:</strong><br>
+                        Cliente Exemplo Ltda<br>
+                        cliente@exemplo.com<br>
+                        +55 11 99999-8888
+                    </div>
+                    
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Descrição</th>
+                                <th style="text-align: right;">Qtd</th>
+                                <th style="text-align: right;">Preço</th>
+                                <th style="text-align: right;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Serviço de Desenvolvimento Web</td>
+                                <td style="text-align: right;">40</td>
+                                <td style="text-align: right;">R$ 150,00</td>
+                                <td style="text-align: right;">R$ 6.000,00</td>
+                            </tr>
+                            <tr>
+                                <td>Hospedagem e Manutenção</td>
+                                <td style="text-align: right;">1</td>
+                                <td style="text-align: right;">R$ 299,00</td>
+                                <td style="text-align: right;">R$ 299,00</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <div class="totals">
+                        <div class="total-row">
+                            <div class="total-label">Subtotal:</div>
+                            <div class="total-amount">R$ 6.299,00</div>
+                        </div>
+                        <div class="total-row">
+                            <div class="total-label">Tax (15%):</div>
+                            <div class="total-amount">R$ 944,85</div>
+                        </div>
+                        <div class="total-row grand-total">
+                            <div class="total-label">Total:</div>
+                            <div class="total-amount">R$ 7.243,85</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('document-preview').innerHTML = documentHTML;
+            updateStatus('preview-status', 'success', 'OK');
+        }
+
+        // Teste automático ao carregar a página
+        window.addEventListener('load', () => {
+            console.log('🧪 Página de teste de dados da empresa carregada!');
+        });
+    </script>
+</body>
+</html>
