@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Client, Invoice, LineItem, Product, mockClients, mockProducts } from '@/types/documents';
+import { Client, Invoice, LineItem, Product } from '@/types/documents';
 import DocumentLineItems from './DocumentLineItems';
 import { toast } from 'sonner';
 
@@ -30,15 +30,15 @@ interface InvoiceFormDialogProps {
   products?: Product[];
 }
 
-const generateInvoiceId = () => `INV-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+const generateInvoiceId = () => `INV-${Date.now()}`;
 
 const InvoiceFormDialog = ({
   open,
   onOpenChange,
   invoice,
   onSave,
-  clients = mockClients,
-  products = mockProducts,
+  clients = [],
+  products = [],
 }: InvoiceFormDialogProps) => {
   const [clientId, setClientId] = useState<string>('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -196,3 +196,5 @@ const InvoiceFormDialog = ({
 };
 
 export default InvoiceFormDialog;
+
+

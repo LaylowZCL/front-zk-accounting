@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Client, Receipt, mockClients, paymentMethods } from '@/types/documents';
+import { Client, Receipt, paymentMethods } from '@/types/documents';
 import { toast } from 'sonner';
 
 interface ReceiptFormDialogProps {
@@ -29,22 +29,15 @@ interface ReceiptFormDialogProps {
   clients?: Client[];
 }
 
-const generateReceiptId = () => `RCP-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
-
-const mockInvoiceOptions = [
-  { id: 'INV-001', client: 'Acme Corporation', amount: 8500.00 },
-  { id: 'INV-002', client: 'TechStart Inc.', amount: 3200.00 },
-  { id: 'INV-003', client: 'Global Services Ltd.', amount: 12000.00 },
-  { id: 'INV-004', client: 'Creative Agency', amount: 1500.00 },
-];
+const generateReceiptId = () => `RCP-${Date.now()}`;
 
 const ReceiptFormDialog = ({ 
   open, 
   onOpenChange, 
   receipt, 
   onSave,
-  invoiceOptions = mockInvoiceOptions,
-  clients = mockClients,
+  invoiceOptions = [],
+  clients = [],
 }: ReceiptFormDialogProps) => {
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -202,3 +195,5 @@ const ReceiptFormDialog = ({
 };
 
 export default ReceiptFormDialog;
+
+

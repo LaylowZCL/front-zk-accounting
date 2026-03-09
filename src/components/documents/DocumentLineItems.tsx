@@ -9,7 +9,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Plus, Trash2 } from 'lucide-react';
-import { LineItem, Product, mockProducts } from '@/types/documents';
+import { LineItem, Product } from '@/types/documents';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
+import { formatMoney } from '@/lib/currency';
 
 interface DocumentLineItemsProps {
   items: LineItem[];
@@ -17,10 +19,12 @@ interface DocumentLineItemsProps {
   products?: Product[];
 }
 
-const generateId = () => Math.random().toString(36).substr(2, 9);
+const generateId = () => crypto.randomUUID();
 
-const DocumentLineItems = ({ items, onItemsChange, products = mockProducts }: DocumentLineItemsProps) => {
+const DocumentLineItems = ({ items, onItemsChange, products = [] }: DocumentLineItemsProps) => {
   const activeProducts = products.filter(p => p.status === 'active');
+  const { settings } = useCompanySettings();
+  const currency = settings.currency || 'MT';
 
   const addItem = () => {
     const newItem: LineItem = {
@@ -42,7 +46,6 @@ const DocumentLineItems = ({ items, onItemsChange, products = mockProducts }: Do
     const updatedItems = items.map(item => {
       if (item.id === id) {
         const updated = { ...item, [field]: value };
-        // Recalculate total
         const subtotal = updated.quantity * updated.unitPrice;
         const tax = subtotal * (updated.taxRate / 100);
         updated.total = subtotal + tax;
@@ -153,7 +156,7 @@ const DocumentLineItems = ({ items, onItemsChange, products = mockProducts }: Do
                 />
               </div>
               <div className="col-span-1 text-right font-medium">
-                ${item.total.toFixed(2)}
+                {formatMoney(item.total, currency)}
               </div>
               <div className="col-span-1 flex justify-end">
                 <Button
@@ -171,20 +174,19 @@ const DocumentLineItems = ({ items, onItemsChange, products = mockProducts }: Do
         )}
       </div>
 
-      {/* Totals */}
       <div className="flex justify-end">
         <div className="w-64 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
+            <span>{formatMoney(subtotal, currency)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Tax</span>
-            <span>${taxTotal.toFixed(2)}</span>
+            <span>{formatMoney(taxTotal, currency)}</span>
           </div>
           <div className="flex justify-between font-semibold text-lg border-t pt-2">
             <span>Total</span>
-            <span>${grandTotal.toFixed(2)}</span>
+            <span>{formatMoney(grandTotal, currency)}</span>
           </div>
         </div>
       </div>

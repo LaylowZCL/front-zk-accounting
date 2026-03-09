@@ -39,6 +39,12 @@ type SecurityEvent = {
   status: 'success' | 'warning';
 };
 
+export type TwoFactorStatus = {
+  enabled: boolean;
+  enabled_at?: string | null;
+  recovery_codes_count?: number;
+};
+
 type SecurityOverviewResponse = {
   ok?: boolean;
   data?: {
@@ -54,8 +60,17 @@ type SecurityOverviewResponse = {
       description?: string;
       created_at?: string;
     }>;
+    two_factor?: {
+      enabled?: boolean;
+      enabled_at?: string | null;
+      recovery_codes_count?: number;
+    };
   };
 };
+
+export type AuthLoginResponse =
+  | { ok: true; token: string; user: ApiUser }
+  | { ok: false; requires_two_factor: true; message?: string };
 
 type ValidationErrors = Record<string, string[]>;
 
@@ -100,7 +115,9 @@ function getDeviceId() {
 }
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token || token === 'undefined' || token === 'null') return null;
+  return token;
 }
 
 export function setToken(token: string) {
@@ -245,8 +262,10 @@ function extractValidationErrors(data: unknown): ValidationErrors | undefined {
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers = new Headers(init.headers ?? {});
+  const isPublicAuthPath = path === '/auth/login' || path === '/auth/register';
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json');
   if (!headers.has('Content-Type') && init.body) headers.set('Content-Type', 'application/json');
-  if (token) headers.set('Authorization', `Bearer ${token}`);
+  if (token && !isPublicAuthPath) headers.set('Authorization', `Bearer ${token}`);
   headers.set('X-Session-Id', getSessionId());
   headers.set('X-Device-Id', getDeviceId());
   headers.set('X-Device-Name', `${navigator.platform} - ${navigator.language}`);
@@ -320,8 +339,8 @@ export async function authRegister(payload: {
   });
 }
 
-export async function authLogin(payload: { email: string; password: string }) {
-  return apiRequest<{ ok: boolean; token: string; user: ApiUser }>('/auth/login', {
+export async function authLogin(payload: { email: string; password: string; two_factor_code?: string; recovery_code?: string }) {
+  return apiRequest<AuthLoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -337,7 +356,7 @@ export async function authLogout() {
 }
 
 export async function changePassword(payload: { current_password: string; password: string; password_confirmation: string }) {
-  await apiRequestFirst<{ ok: boolean }>(['/security/change-password'], {
+  await apiRequestFirst<{ ok: boolean }>(['/workspace/security/change-password', '/security/change-password'], {
     method: 'POST',
     body: JSON.stringify({
       currentPassword: payload.current_password,
@@ -346,11 +365,15 @@ export async function changePassword(payload: { current_password: string; passwo
   });
 }
 
+export async function getSecurityOverview() {
+  return apiRequestFirst<SecurityOverviewResponse>(['/workspace/security', '/security']);
+}
+
 export async function listSessions() {
-  const response = await apiRequestFirst<SecurityOverviewResponse>(['/security']);
+  const response = await getSecurityOverview();
   const sessions = response.data?.sessions ?? [];
   return sessions.map((session) => ({
-    id: session.session_id ?? '',
+    id: String(session.session_id ?? ''),
     device: session.device_name || 'Unknown device',
     location: session.ip_address || 'Unknown location',
     ip: session.ip_address || '',
@@ -360,7 +383,7 @@ export async function listSessions() {
 }
 
 export async function listSecurityEvents(): Promise<SecurityEvent[]> {
-  const response = await apiRequestFirst<SecurityOverviewResponse>(['/security']);
+  const response = await getSecurityOverview();
   const events = response.data?.events ?? [];
   return events.map((event) => ({
     id: String(event.id ?? crypto.randomUUID()),
@@ -371,18 +394,71 @@ export async function listSecurityEvents(): Promise<SecurityEvent[]> {
 }
 
 export async function revokeSession(sessionId: string) {
-  await apiRequestFirst<{ ok: boolean }>([`/security/sessions/${sessionId}/revoke`], { method: 'POST' });
+  const id = encodeURIComponent(sessionId);
+  await apiRequestFirst<{ ok: boolean }>([`/workspace/security/sessions/${id}/revoke`, `/security/sessions/${id}/revoke`], { method: 'POST' });
 }
 
 export async function revokeOtherSessions() {
   const sessions = await listSessions();
   await Promise.all(
     sessions
-      .filter((session) => !session.current)
+      .filter((session) => !session.current && session.id)
       .map((session) => revokeSession(session.id))
   );
 }
 
+
+export async function getTwoFactorStatus() {
+  const response = await apiRequestFirst<{ ok?: boolean; data?: TwoFactorStatus }>(['/workspace/security/2fa']);
+  return response.data ?? { enabled: false, recovery_codes_count: 0 };
+}
+
+export async function startTwoFactorSetup() {
+  const response = await apiRequestFirst<{
+    ok?: boolean;
+    data?: {
+      secret?: string;
+      otpauth_url?: string;
+      qr_svg?: string;
+      expires_in_seconds?: number;
+    };
+  }>(['/workspace/security/2fa/setup'], { method: 'POST' });
+
+  return response.data ?? null;
+}
+
+export async function enableTwoFactor(code: string) {
+  const response = await apiRequestFirst<{ ok?: boolean; data?: { enabled?: boolean; recovery_codes?: string[] } }>(
+    ['/workspace/security/2fa/enable'],
+    {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }
+  );
+
+  return response.data ?? null;
+}
+
+export async function disableTwoFactor(payload: { currentPassword: string; code?: string; recoveryCode?: string }) {
+  const response = await apiRequestFirst<{ ok?: boolean; data?: { enabled?: boolean } }>(['/workspace/security/2fa/disable'], {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+  return response.data ?? null;
+}
+
+export async function regenerateTwoFactorRecoveryCodes(code: string) {
+  const response = await apiRequestFirst<{ ok?: boolean; data?: { recovery_codes?: string[]; recovery_codes_count?: number } }>(
+    ['/workspace/security/2fa/recovery-codes'],
+    {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }
+  );
+
+  return response.data ?? null;
+}
 export async function fetchPlans() {
   const response = await apiRequest<{ ok: boolean; data: Plan[] }>('/billing/plans');
   return response.data;
@@ -394,3 +470,7 @@ export async function startCheckout(payload: { plan_id: number; payment_type: 'R
     body: JSON.stringify(payload),
   });
 }
+
+
+
+

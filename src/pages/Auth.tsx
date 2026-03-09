@@ -20,6 +20,9 @@ const Auth = ({ mode }: AuthProps) => {
   const { setSession } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [twoFactorRequired, setTwoFactorRequired] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [recoveryCode, setRecoveryCode] = useState('');
 
   const isLogin = mode === 'login';
 
@@ -55,9 +58,24 @@ const Auth = ({ mode }: AuthProps) => {
     try {
       if (isLogin) {
         const payload = values as LoginFormValues;
-        const response = await authLogin({ email: payload.email, password: payload.password });
+        const response = await authLogin({
+          email: payload.email,
+          password: payload.password,
+          two_factor_code: twoFactorCode.trim() || undefined,
+          recovery_code: recoveryCode.trim() || undefined,
+        });
+
+        if (!response.ok) {
+          setTwoFactorRequired(true);
+          toast.warning(response.message || 'Two-factor code required');
+          return;
+        }
+
         setSession(response.token, response.user);
         toast.success('Login efetuado com sucesso');
+        setTwoFactorRequired(false);
+        setTwoFactorCode('');
+        setRecoveryCode('');
         navigate(response.user.is_platform_admin ? '/admin/dashboard' : '/dashboard');
       } else {
         const payload = values as RegisterFormValues;
@@ -74,9 +92,14 @@ const Auth = ({ mode }: AuthProps) => {
     } catch (error) {
       if (error instanceof ApiError) {
         handleApiValidationErrors(error);
-        toast.error(error.message || 'Erro na autenticaÃ§Ã£o');
+        if (isLogin && error.status === 428) {
+          setTwoFactorRequired(true);
+          toast.warning(error.message || 'Two-factor code required');
+        } else {
+          toast.error(error.message || 'Erro na autenticação');
+        }
       } else {
-        toast.error('Erro na autenticaÃ§Ã£o');
+        toast.error('Erro na autenticação');
       }
     } finally {
       setIsSubmitting(false);
@@ -103,7 +126,7 @@ const Auth = ({ mode }: AuthProps) => {
             </p>
           </div>
 
-          <p className="text-sm text-primary-foreground/60">Â© {new Date().getFullYear()} BillFlow. All rights reserved.</p>
+          <p className="text-sm text-primary-foreground/60">© {new Date().getFullYear()} BillFlow. All rights reserved.</p>
         </div>
       </div>
 
@@ -173,7 +196,7 @@ const Auth = ({ mode }: AuthProps) => {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                  placeholder="••••••••"
                   className={`pl-10 pr-10 h-12 ${activeForm.formState.errors.password ? 'border-destructive' : ''}`}
                   {...activeForm.register('password')}
                 />
@@ -189,6 +212,35 @@ const Auth = ({ mode }: AuthProps) => {
                 <p className="text-xs text-destructive">{activeForm.formState.errors.password.message}</p>
               )}
             </div>
+
+            {isLogin && twoFactorRequired && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="twoFactorCode">Authentication Code</Label>
+                  <Input
+                    id="twoFactorCode"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="123456"
+                    className="h-12"
+                    value={twoFactorCode}
+                    onChange={(e) => setTwoFactorCode(e.target.value.replace(/\s+/g, ''))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="recoveryCode">Recovery Code (optional)</Label>
+                  <Input
+                    id="recoveryCode"
+                    type="text"
+                    placeholder="ABCD-EFGH"
+                    className="h-12"
+                    value={recoveryCode}
+                    onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
+                  />
+                </div>
+              </>
+            )}
 
             <Button variant="hero" size="lg" className="w-full" type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'A processar...' : isLogin ? 'Sign In' : 'Create Account'}

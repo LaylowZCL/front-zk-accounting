@@ -22,8 +22,22 @@ import {
   LogOut,
   Loader2,
 } from 'lucide-react';
-import { ApiError, ApiSession, changePassword, listSecurityEvents, listSessions, revokeOtherSessions, revokeSession } from '@/lib/api';
+import {
+  ApiError,
+  ApiSession,
+  changePassword,
+  disableTwoFactor,
+  enableTwoFactor,
+  getTwoFactorStatus,
+  listSecurityEvents,
+  listSessions,
+  regenerateTwoFactorRecoveryCodes,
+  revokeOtherSessions,
+  revokeSession,
+  startTwoFactorSetup,
+} from '@/lib/api';
 import { PasswordChangeFormValues, passwordChangeSchema } from '@/lib/validators';
+import QRCode from 'qrcode';
 
 interface SecuritySettingsPageProps {
   userType: 'local' | 'client';
@@ -33,11 +47,22 @@ const SecuritySettingsPage = ({ userType }: SecuritySettingsPageProps) => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [sessions, setSessions] = useState<ApiSession[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const [isRevokingAll, setIsRevokingAll] = useState(false);
   const [securityEvents, setSecurityEvents] = useState<Array<{ id: string; event: string; date: string; status: 'success' | 'warning' }>>([]);
+
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [recoveryCodesCount, setRecoveryCodesCount] = useState(0);
+  const [setupData, setSetupData] = useState<{ qr_svg?: string; secret?: string; otpauth_url?: string } | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [setupCode, setSetupCode] = useState('');
+  const [disableCurrentPassword, setDisableCurrentPassword] = useState('');
+  const [disableCode, setDisableCode] = useState('');
+  const [disableRecoveryCode, setDisableRecoveryCode] = useState('');
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [regenerateCode, setRegenerateCode] = useState('');
+  const [isTwoFactorBusy, setIsTwoFactorBusy] = useState(false);
 
   const form = useForm<PasswordChangeFormValues>({
     resolver: zodResolver(passwordChangeSchema),
@@ -49,26 +74,42 @@ const SecuritySettingsPage = ({ userType }: SecuritySettingsPageProps) => {
     mode: 'onBlur',
   });
 
-  const loadSessions = async () => {
+  const loadSecurityData = async () => {
     setIsLoadingSessions(true);
     try {
-      const data = await listSessions();
-      setSessions(data);
+      const [sessionData, eventData, twoFactor] = await Promise.all([
+        listSessions(),
+        listSecurityEvents(),
+        getTwoFactorStatus(),
+      ]);
+      setSessions(sessionData);
+      setSecurityEvents(eventData);
+      setTwoFactorEnabled(Boolean(twoFactor.enabled));
+      setRecoveryCodesCount(Number(twoFactor.recovery_codes_count ?? 0));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao carregar sessões';
+      const message = error instanceof Error ? error.message : 'Failed to load security data';
       toast.error(message);
       setSessions([]);
+      setSecurityEvents([]);
     } finally {
       setIsLoadingSessions(false);
     }
   };
 
   useEffect(() => {
-    loadSessions();
-    listSecurityEvents()
-      .then((events) => setSecurityEvents(events))
-      .catch(() => setSecurityEvents([]));
+    loadSecurityData();
   }, []);
+
+  useEffect(() => {
+    if (!setupData?.otpauth_url) {
+      setQrDataUrl('');
+      return;
+    }
+
+    QRCode.toDataURL(setupData.otpauth_url, { width: 220, margin: 1 })
+      .then((url) => setQrDataUrl(url))
+      .catch(() => setQrDataUrl(''));
+  }, [setupData?.otpauth_url]);
 
   const handleChangePassword = async (values: PasswordChangeFormValues) => {
     try {
@@ -77,8 +118,9 @@ const SecuritySettingsPage = ({ userType }: SecuritySettingsPageProps) => {
         password: values.newPassword,
         password_confirmation: values.confirmPassword,
       });
-      toast.success('Password alterada com sucesso');
+      toast.success('Password updated successfully');
       form.reset();
+      await loadSecurityData();
     } catch (error) {
       if (error instanceof ApiError && error.errors) {
         Object.entries(error.errors).forEach(([field, messages]) => {
@@ -89,18 +131,113 @@ const SecuritySettingsPage = ({ userType }: SecuritySettingsPageProps) => {
           if (field === 'password_confirmation') form.setError('confirmPassword', { message });
         });
       }
-      const message = error instanceof Error ? error.message : 'Não foi possível alterar a password';
+      const message = error instanceof Error ? error.message : 'Could not update password';
       toast.error(message);
+    }
+  };
+
+  const handleStartTwoFactorSetup = async () => {
+    setIsTwoFactorBusy(true);
+    try {
+      const data = await startTwoFactorSetup();
+      if (!data) throw new Error('Failed to prepare 2FA setup');
+      setSetupData({
+        qr_svg: typeof data.qr_svg === 'string' ? data.qr_svg : undefined,
+        secret: data.secret,
+        otpauth_url: data.otpauth_url,
+      });
+      setQrDataUrl('');
+      setSetupCode('');
+      toast.success('Scan QR code and confirm with your authenticator code');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to start 2FA setup');
+    } finally {
+      setIsTwoFactorBusy(false);
+    }
+  };
+
+  const handleEnableTwoFactor = async () => {
+    if (!setupCode.trim()) {
+      toast.error('Enter the authentication code from your app');
+      return;
+    }
+
+    setIsTwoFactorBusy(true);
+    try {
+      const data = await enableTwoFactor(setupCode.trim());
+      setRecoveryCodes(data?.recovery_codes ?? []);
+      setSetupData(null);
+      setQrDataUrl('');
+      setSetupCode('');
+      await loadSecurityData();
+      toast.success('2FA enabled successfully');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to enable 2FA');
+    } finally {
+      setIsTwoFactorBusy(false);
+    }
+  };
+
+  const handleDisableTwoFactor = async () => {
+    if (!disableCurrentPassword.trim()) {
+      toast.error('Current password is required');
+      return;
+    }
+
+    if (!disableCode.trim() && !disableRecoveryCode.trim()) {
+      toast.error('Provide 2FA code or recovery code');
+      return;
+    }
+
+    setIsTwoFactorBusy(true);
+    try {
+      await disableTwoFactor({
+        currentPassword: disableCurrentPassword,
+        code: disableCode.trim() || undefined,
+        recoveryCode: disableRecoveryCode.trim() || undefined,
+      });
+      setDisableCurrentPassword('');
+      setDisableCode('');
+      setDisableRecoveryCode('');
+      setRecoveryCodes([]);
+      setSetupData(null);
+      setQrDataUrl('');
+      await loadSecurityData();
+      toast.success('2FA disabled successfully');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to disable 2FA');
+    } finally {
+      setIsTwoFactorBusy(false);
+    }
+  };
+
+  const handleRegenerateRecoveryCodes = async () => {
+    if (!regenerateCode.trim()) {
+      toast.error('Enter your current 2FA code to regenerate recovery codes');
+      return;
+    }
+
+    setIsTwoFactorBusy(true);
+    try {
+      const data = await regenerateTwoFactorRecoveryCodes(regenerateCode.trim());
+      setRecoveryCodes(data?.recovery_codes ?? []);
+      setRegenerateCode('');
+      await loadSecurityData();
+      toast.success('Recovery codes regenerated');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to regenerate recovery codes');
+    } finally {
+      setIsTwoFactorBusy(false);
     }
   };
 
   const handleRevokeSession = async (sessionId: string) => {
     try {
       await revokeSession(sessionId);
-      toast.success('Sessão revogada com sucesso');
-      await loadSessions();
+      toast.success('Session revoked successfully');
+      await loadSecurityData();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao revogar sessão';
+      const message = error instanceof Error ? error.message : 'Failed to revoke session';
       toast.error(message);
     }
   };
@@ -109,15 +246,17 @@ const SecuritySettingsPage = ({ userType }: SecuritySettingsPageProps) => {
     setIsRevokingAll(true);
     try {
       await revokeOtherSessions();
-      toast.success('Sessões revogadas com sucesso');
-      await loadSessions();
+      toast.success('Sessions revoked successfully');
+      await loadSecurityData();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao revogar sessões';
+      const message = error instanceof Error ? error.message : 'Failed to revoke sessions';
       toast.error(message);
     } finally {
       setIsRevokingAll(false);
     }
   };
+
+  const hasOtherSessions = sessions.some((session) => !session.current);
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -218,7 +357,7 @@ const SecuritySettingsPage = ({ userType }: SecuritySettingsPageProps) => {
                   </p>
 
                   <Button type="submit" disabled={form.formState.isSubmitting}>
-                    {form.formState.isSubmitting ? 'A atualizar...' : 'Update Password'}
+                    {form.formState.isSubmitting ? 'Updating...' : 'Update Password'}
                   </Button>
                 </form>
               </CardContent>
@@ -239,16 +378,103 @@ const SecuritySettingsPage = ({ userType }: SecuritySettingsPageProps) => {
                   <Badge variant={twoFactorEnabled ? 'default' : 'secondary'}>{twoFactorEnabled ? 'Enabled' : 'Disabled'}</Badge>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/50">
-                  <div>
-                    <p className="font-medium">Protect your account with 2FA</p>
-                    <p className="text-sm text-muted-foreground">Backend 2FA endpoint is not configured yet.</p>
+              <CardContent className="space-y-4">
+                {!twoFactorEnabled && (
+                  <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/50">
+                    <div>
+                      <p className="font-medium">Protect your account with 2FA</p>
+                      <p className="text-sm text-muted-foreground">Use authenticator apps like Google Authenticator, Authy, or 1Password.</p>
+                    </div>
+                    <Button variant="outline" onClick={handleStartTwoFactorSetup} disabled={isTwoFactorBusy}>
+                      {isTwoFactorBusy ? 'Please wait...' : 'Enable'}
+                    </Button>
                   </div>
-                  <Button variant="outline" onClick={() => setTwoFactorEnabled((prev) => !prev)}>
-                    {twoFactorEnabled ? 'Disable' : 'Enable'}
-                  </Button>
-                </div>
+                )}
+
+                {!twoFactorEnabled && setupData && (
+                  <div className="p-4 rounded-lg bg-secondary/30 space-y-3">
+                    <p className="font-medium">Step 1: Scan QR code</p>
+                    {qrDataUrl ? (
+                      <img src={qrDataUrl} alt="2FA QR" className="inline-block p-2 bg-white rounded-md" />
+                    ) : setupData.qr_svg ? (
+                      <div className="inline-block p-2 bg-white rounded-md" dangerouslySetInnerHTML={{ __html: String(setupData.qr_svg) }} />
+                    ) : null}
+                    {setupData.secret && <p className="text-sm text-muted-foreground">Manual key: <span className="font-mono">{setupData.secret}</span></p>}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="setupCode">Step 2: Enter authentication code</Label>
+                      <Input
+                        id="setupCode"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="123456"
+                        value={setupCode}
+                        onChange={(e) => setSetupCode(e.target.value.replace(/\s+/g, ''))}
+                      />
+                    </div>
+                    <Button onClick={handleEnableTwoFactor} disabled={isTwoFactorBusy}>Confirm Activation</Button>
+                  </div>
+                )}
+
+                {twoFactorEnabled && (
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-lg bg-secondary/50">
+                      <p className="font-medium">2FA is active</p>
+                      <p className="text-sm text-muted-foreground">Recovery codes available: {recoveryCodesCount}</p>
+                    </div>
+
+                    <div className="p-4 rounded-lg bg-secondary/30 space-y-3">
+                      <p className="font-medium">Regenerate recovery codes</p>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="Current 2FA code"
+                        value={regenerateCode}
+                        onChange={(e) => setRegenerateCode(e.target.value.replace(/\s+/g, ''))}
+                      />
+                      <Button variant="outline" onClick={handleRegenerateRecoveryCodes} disabled={isTwoFactorBusy}>
+                        Regenerate Codes
+                      </Button>
+                    </div>
+
+                    <div className="p-4 rounded-lg bg-secondary/30 space-y-3">
+                      <p className="font-medium">Disable 2FA</p>
+                      <Input
+                        type="password"
+                        placeholder="Current account password"
+                        value={disableCurrentPassword}
+                        onChange={(e) => setDisableCurrentPassword(e.target.value)}
+                      />
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="2FA code (or use recovery code below)"
+                        value={disableCode}
+                        onChange={(e) => setDisableCode(e.target.value.replace(/\s+/g, ''))}
+                      />
+                      <Input
+                        type="text"
+                        placeholder="Recovery code (optional)"
+                        value={disableRecoveryCode}
+                        onChange={(e) => setDisableRecoveryCode(e.target.value.toUpperCase())}
+                      />
+                      <Button variant="outline" onClick={handleDisableTwoFactor} disabled={isTwoFactorBusy}>
+                        Disable
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {recoveryCodes.length > 0 && (
+                  <div className="p-4 rounded-lg border border-border space-y-2">
+                    <p className="font-medium">Recovery Codes (save these now)</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {recoveryCodes.map((code) => (
+                        <div key={code} className="text-xs font-mono p-2 rounded bg-secondary/40">{code}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -264,7 +490,7 @@ const SecuritySettingsPage = ({ userType }: SecuritySettingsPageProps) => {
                       <CardDescription>Manage devices where you're currently logged in</CardDescription>
                     </div>
                   </div>
-                  <Button variant="outline" onClick={handleRevokeAllSessions} disabled={isRevokingAll || isLoadingSessions}>
+                  <Button variant="outline" onClick={handleRevokeAllSessions} disabled={isRevokingAll || isLoadingSessions || !hasOtherSessions}>
                     {isRevokingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogOut className="h-4 w-4 mr-2" />}
                     Revoke All
                   </Button>
@@ -320,21 +546,25 @@ const SecuritySettingsPage = ({ userType }: SecuritySettingsPageProps) => {
                 <CardDescription>Recent security events on your account</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {securityEvents.map((event) => (
-                    <div key={event.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30">
-                      <div className="flex items-center gap-3">
-                        {event.status === 'success' ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <Clock className="h-4 w-4 text-yellow-500" />
-                        )}
-                        <span className="text-sm">{event.event}</span>
+                {securityEvents.length === 0 ? (
+                  <div className="py-4 text-sm text-muted-foreground">No security events found.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {securityEvents.map((event) => (
+                      <div key={event.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30">
+                        <div className="flex items-center gap-3">
+                          {event.status === 'success' ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <Clock className="h-4 w-4 text-yellow-500" />
+                          )}
+                          <span className="text-sm">{event.event}</span>
+                        </div>
+                        <span className="text-sm text-muted-foreground">{event.date}</span>
                       </div>
-                      <span className="text-sm text-muted-foreground">{event.date}</span>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
                 <Separator className="my-4" />
                 <p className="text-xs text-muted-foreground">Security log loaded from backend activity events.</p>
               </CardContent>

@@ -33,38 +33,43 @@ import ReceiptFormDialog from '@/components/documents/ReceiptFormDialog';
 import DocumentViewDialog from '@/components/documents/DocumentViewDialog';
 import { Client, Invoice, Receipt } from '@/types/documents';
 import { toast } from 'sonner';
-import { deleteReceipt, getWorkspaceDocumentDownloadUrl, listClients, listInvoices, listReceipts, saveReceipt, sendWorkspaceDocument } from '@/lib/business-api';
+import { deleteReceipt, duplicateReceipt, getSettings, getWorkspaceDocumentDownloadUrl, listClients, listInvoices, listReceipts, saveReceipt, sendWorkspaceDocument } from '@/lib/business-api';
+import { formatMoney } from '@/lib/currency';
 
 const Receipts = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [currency, setCurrency] = useState('MT');
   const [isLoading, setIsLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
 
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [receiptList, invoiceList, clientList, settings] = await Promise.all([
+        listReceipts(),
+        listInvoices(),
+        listClients(),
+        getSettings(),
+      ]);
+      setReceipts(receiptList);
+      setInvoices(invoiceList);
+      setClients(clientList);
+      setCurrency(settings.company?.currency || 'MT');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load receipts');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      setIsLoading(true);
-      try {
-        const [receiptList, invoiceList, clientList] = await Promise.all([
-          listReceipts(),
-          listInvoices(),
-          listClients(),
-        ]);
-        setReceipts(receiptList);
-        setInvoices(invoiceList);
-        setClients(clientList);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to load receipts');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    load();
+    loadData();
   }, []);
 
   const invoiceOptions = useMemo(
@@ -110,6 +115,17 @@ const Receipts = () => {
     }
     setDeleteOpen(false);
     setSelectedReceipt(null);
+  };
+
+  const handleDuplicate = async (receipt: Receipt) => {
+    if (!receipt.documentId) return toast.error('Missing internal receipt id');
+    try {
+      const copy = await duplicateReceipt(receipt.documentId);
+      setReceipts([copy, ...receipts]);
+      toast.success(`${receipt.id} cloned successfully`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to clone receipt');
+    }
   };
 
   const handleDownloadPDF = async (receipt: Receipt) => {
@@ -189,13 +205,14 @@ const Receipts = () => {
                       <TableCell><Badge variant="outline">{receipt.invoice}</Badge></TableCell>
                       <TableCell>{receipt.client}</TableCell>
                       <TableCell>{receipt.date}</TableCell>
-                      <TableCell className="font-medium">${receipt.amount.toLocaleString()}</TableCell>
+                      <TableCell className="font-medium">{formatMoney(receipt.amount, currency)}</TableCell>
                       <TableCell><Badge variant="secondary">{receipt.paymentMethod}</Badge></TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="w-4 h-4" /></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-popover">
                             <DropdownMenuItem onClick={() => handleView(receipt)}>View Details</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDuplicate(receipt)}>Clone Receipt</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleDownloadPDF(receipt)}>Download PDF</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleSendEmail(receipt)}>Send via Email</DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(receipt)}>Delete</DropdownMenuItem>

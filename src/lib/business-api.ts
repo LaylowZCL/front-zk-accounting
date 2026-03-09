@@ -52,6 +52,9 @@ export interface SettingsPayload {
     address?: string;
     phone?: string;
     email?: string;
+    currency?: string;
+    logo?: string;
+    logo_url?: string;
   };
   profile?: {
     first_name?: string;
@@ -167,6 +170,22 @@ const getDocumentPk = (payload: Partial<Invoice | Quotation | Receipt>) => {
   return null;
 };
 
+export async function completeCompanySetup(payload: {
+  company_name: string;
+  industry?: string;
+  website?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  tax_number?: string;
+  registration_number?: string;
+  logo?: string;
+  currency?: string;
+}) {
+  return apiRequestFirst<{ ok: boolean; data?: Record<string, unknown> }>(['/workspace/company/setup'], postJson(payload));
+}
 export async function listClients() {
   const response = await apiRequestFirst<ApiList<Client> | Client[]>(['/workspace/clients']);
   return unwrapList(response).map((item) => normalizeClient(item));
@@ -256,12 +275,17 @@ export async function deleteInvoice(id: string | number) {
   await apiRequestFirst<{ ok: boolean }>([`/workspace/invoices/${id}`], { method: 'DELETE' });
 }
 
+export async function duplicateInvoice(id: string | number) {
+  const response = await apiRequestFirst<ApiItem<BackendDocument> | BackendDocument>([`/workspace/invoices/${id}/duplicate`], postJson({}));
+  return normalizeDocument<Invoice>(unwrapItem(response));
+}
+
 export async function convertQuotationToInvoice(id: string | number) {
   return apiRequestFirst<ApiItem<BackendDocument> | BackendDocument>([`/workspace/quotations/${id}/convert`], postJson({}));
 }
 
-export async function convertInvoiceToReceipt(id: string | number) {
-  return apiRequestFirst<ApiItem<BackendDocument> | BackendDocument>([`/workspace/invoices/${id}/convert`], postJson({}));
+export async function convertInvoiceToReceipt(id: string | number, payload: { paymentMethod?: string; paymentDate?: string; notes?: string } = {}) {
+  return apiRequestFirst<ApiItem<BackendDocument> | BackendDocument>([`/workspace/invoices/${id}/convert`], postJson(payload));
 }
 
 export async function listQuotations() {
@@ -282,6 +306,11 @@ export async function saveQuotation(payload: Quotation) {
 
 export async function deleteQuotation(id: string | number) {
   await apiRequestFirst<{ ok: boolean }>([`/workspace/quotations/${id}`], { method: 'DELETE' });
+}
+
+export async function duplicateQuotation(id: string | number) {
+  const response = await apiRequestFirst<ApiItem<BackendDocument> | BackendDocument>([`/workspace/quotations/${id}/duplicate`], postJson({}));
+  return normalizeDocument<Quotation>(unwrapItem(response));
 }
 
 export async function sendWorkspaceDocument(type: 'quotations' | 'invoices' | 'receipts', id: string | number) {
@@ -325,6 +354,11 @@ export async function deleteReceipt(id: string | number) {
   await apiRequestFirst<{ ok: boolean }>([`/workspace/receipts/${id}`], { method: 'DELETE' });
 }
 
+export async function duplicateReceipt(id: string | number) {
+  const response = await apiRequestFirst<ApiItem<BackendDocument> | BackendDocument>([`/workspace/receipts/${id}/duplicate`], postJson({}));
+  return normalizeDocument<Receipt>(unwrapItem(response));
+}
+
 export async function listPayments() {
   const response = await apiRequestFirst<ApiList<PaymentRecord> | PaymentRecord[]>(['/workspace/payments']);
   return unwrapList(response).map((row) => ({
@@ -349,11 +383,10 @@ export async function createPayment(payload: {
   notes?: string;
 }) {
   const body = {
-    client_id: payload.clientId,
     document_id: payload.documentId,
     amount: payload.amount,
-    payment_method: payload.paymentMethod,
-    payment_date: payload.paymentDate || new Date().toISOString().split('T')[0],
+    method: payload.paymentMethod,
+    date: payload.paymentDate || new Date().toISOString().split('T')[0],
     status: payload.status || 'completed',
     notes: payload.notes,
   };
@@ -387,7 +420,7 @@ export async function listReports() {
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
-  const response = await apiRequestFirst<ApiEnvelope<{ total_revenue?: number; pending_invoices?: number; total_clients?: number; paid_this_month?: number; recent_invoices?: Array<{ number?: string; total_cents?: number; status?: string; issue_date?: string; client?: { name?: string } }> }>>(['/workspace/dashboard']);
+  const response = await apiRequestFirst<ApiEnvelope<{ total_revenue?: number; pending_invoices?: number; total_clients?: number; paid_this_month?: number; paid_invoices_this_month?: number; recent_invoices?: Array<{ number?: string; total_cents?: number; status?: string; issue_date?: string; client?: { name?: string } }> }>>(['/workspace/dashboard']);
   const data = response.data ?? {};
   const recentInvoices = (data.recent_invoices ?? []).map((inv) => ({
     id: String(inv.number ?? '-'),
@@ -401,22 +434,38 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     .filter((inv) => ['pending', 'overdue', 'partial'].includes(inv.status))
     .reduce((acc, inv) => acc + inv.amount, 0);
 
-  // Generate sample data for charts if backend doesn't provide it
-  const revenueByMonth = [
-    { month: 'Jan', revenue: Math.random() * 50000 + 10000 },
-    { month: 'Feb', revenue: Math.random() * 50000 + 10000 },
-    { month: 'Mar', revenue: Number(data.total_revenue ?? 0) || Math.random() * 50000 + 10000 },
-  ];
+  const monthBuckets = new Map<string, number>();
+  for (let i = 2; i >= 0; i -= 1) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    monthBuckets.set(d.toLocaleString('en-US', { month: 'short' }), 0);
+  }
+  recentInvoices.forEach((inv) => {
+    const dt = new Date(inv.date);
+    if (!Number.isNaN(dt.getTime())) {
+      const key = dt.toLocaleString('en-US', { month: 'short' });
+      if (monthBuckets.has(key)) {
+        monthBuckets.set(key, (monthBuckets.get(key) ?? 0) + inv.amount);
+      }
+    }
+  });
+  const revenueByMonth = Array.from(monthBuckets.entries()).map(([month, revenue]) => ({ month, revenue }));
 
-  const weeklyActivity = [
-    { day: 'Mon', invoices: Math.floor(Math.random() * 10) + 1, payments: Math.floor(Math.random() * 8) + 1 },
-    { day: 'Tue', invoices: Math.floor(Math.random() * 10) + 1, payments: Math.floor(Math.random() * 8) + 1 },
-    { day: 'Wed', invoices: Math.floor(Math.random() * 10) + 1, payments: Math.floor(Math.random() * 8) + 1 },
-    { day: 'Thu', invoices: Math.floor(Math.random() * 10) + 1, payments: Math.floor(Math.random() * 8) + 1 },
-    { day: 'Fri', invoices: Math.floor(Math.random() * 10) + 1, payments: Math.floor(Math.random() * 8) + 1 },
-    { day: 'Sat', invoices: Math.floor(Math.random() * 5) + 1, payments: Math.floor(Math.random() * 4) + 1 },
-    { day: 'Sun', invoices: Math.floor(Math.random() * 5) + 1, payments: Math.floor(Math.random() * 4) + 1 },
-  ];
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  weekStart.setHours(0, 0, 0, 0);
+
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const weeklyActivity = dayLabels.map((day) => ({ day, invoices: 0, payments: 0 }));
+
+  recentInvoices.forEach((inv) => {
+    const dt = new Date(inv.date);
+    if (Number.isNaN(dt.getTime())) return;
+    const dayDiff = Math.floor((dt.getTime() - weekStart.getTime()) / (1000 * 60 * 60 * 24));
+    if (dayDiff < 0 || dayDiff > 6) return;
+    weeklyActivity[dayDiff].invoices += 1;
+    if (inv.status === 'paid') weeklyActivity[dayDiff].payments += 1;
+  });
 
   return {
     totalRevenue: Number(data.total_revenue ?? 0),
@@ -424,7 +473,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     pendingAmount,
     totalClients: Number(data.total_clients ?? 0),
     paidThisMonth: Number(data.paid_this_month ?? 0),
-    paidInvoicesThisMonth: recentInvoices.filter((inv) => inv.status === 'paid').length,
+    paidInvoicesThisMonth: Number(data.paid_invoices_this_month ?? recentInvoices.filter((inv) => inv.status === 'paid').length),
     recentInvoices,
     revenueByMonth,
     invoiceStatus: [
@@ -452,3 +501,36 @@ export async function getSettings() {
 export async function saveSettings(payload: SettingsPayload) {
   return apiRequestFirst<{ ok: boolean; data?: SettingsPayload }>(['/workspace/settings'], patchJson(payload));
 }
+
+
+
+
+
+
+export interface WorkspaceEntitlements {
+  account_status: 'trial' | 'active' | 'suspended' | 'cancelled' | 'no_account';
+  current_plan?: {
+    id: number;
+    code: string;
+    name: string;
+    billing_interval: 'monthly' | 'yearly';
+    trial_days: number;
+  } | null;
+  active_plan_id?: number | null;
+  active_plan_code?: string | null;
+  trial_started_at?: string | null;
+  trial_ends_at?: string | null;
+  grace_ends_at?: string | null;
+  company_setup_completed: boolean;
+  billing_good_standing: boolean;
+  can_issue_documents: boolean;
+}
+
+export async function getWorkspaceEntitlements() {
+  const response = await apiRequestFirst<ApiEnvelope<WorkspaceEntitlements>>(['/workspace/entitlements']);
+  return response.data;
+}
+
+
+
+

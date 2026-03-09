@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Client, Product, Quotation, LineItem, mockClients, mockProducts } from '@/types/documents';
+import { Client, Product, Quotation, LineItem } from '@/types/documents';
 import DocumentLineItems from './DocumentLineItems';
 import { toast } from 'sonner';
 
@@ -30,15 +30,15 @@ interface QuotationFormDialogProps {
   products?: Product[];
 }
 
-const generateQuotationId = () => `QT-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+const generateQuotationId = () => `QT-${Date.now()}`;
 
 const QuotationFormDialog = ({
   open,
   onOpenChange,
   quotation,
   onSave,
-  clients = mockClients,
-  products = mockProducts,
+  clients = [],
+  products = [],
 }: QuotationFormDialogProps) => {
   const [clientId, setClientId] = useState<string>('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -196,3 +196,5 @@ const QuotationFormDialog = ({
 };
 
 export default QuotationFormDialog;
+
+

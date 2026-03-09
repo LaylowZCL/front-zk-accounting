@@ -1,14 +1,14 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-  Zap, 
-  Building2, 
-  Upload, 
-  ArrowRight, 
+import {
+  Zap,
+  Building2,
+  Upload,
+  ArrowRight,
   ArrowLeft,
   CheckCircle,
   Globe,
@@ -17,6 +17,8 @@ import {
   MapPin,
   FileText
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { completeCompanySetup } from '@/lib/business-api';
 
 const steps = [
   { id: 1, title: 'Company Info', icon: Building2 },
@@ -26,7 +28,9 @@ const steps = [
 ];
 
 const CompanySetup = () => {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     companyName: '',
     industry: '',
@@ -39,7 +43,10 @@ const CompanySetup = () => {
     taxNumber: '',
     registrationNumber: '',
     logo: null as File | null,
+    logoDataUrl: '',
+    currency: 'MT',
   });
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleNext = () => {
     if (currentStep < 4) setCurrentStep(currentStep + 1);
@@ -49,13 +56,61 @@ const CompanySetup = () => {
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
-  const handleComplete = () => {
-    console.log('Setup complete:', formData);
+  const handleLogoUpload = (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Logo must be up to 2MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      setFormData((prev) => ({ ...prev, logo: file, logoDataUrl: result }));
+      toast.success('Logo selected successfully.');
+    };
+    reader.onerror = () => toast.error('Failed to read logo file.');
+    reader.readAsDataURL(file);
+  };
+
+  const handleComplete = async () => {
+    if (!formData.companyName || !formData.email) {
+      toast.error('Company name and business email are required.');
+      setCurrentStep(formData.companyName ? 2 : 1);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await completeCompanySetup({
+        company_name: formData.companyName,
+        industry: formData.industry,
+        website: formData.website,
+        email: formData.email,
+        phone: formData.phone,
+        address: formData.address,
+        city: formData.city,
+        country: formData.country,
+        tax_number: formData.taxNumber,
+        registration_number: formData.registrationNumber,
+        logo: formData.logoDataUrl || undefined,
+        currency: formData.currency || 'MT',
+      });
+      toast.success('Company setup completed successfully');
+      navigate('/dashboard');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to complete company setup');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-secondary/30 to-background">
-      {/* Header */}
       <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4">
           <Link to="/" className="flex items-center gap-2">
@@ -68,7 +123,6 @@ const CompanySetup = () => {
       </header>
 
       <main className="container mx-auto px-4 py-12 max-w-3xl">
-        {/* Progress Steps */}
         <div className="mb-12">
           <div className="flex items-center justify-between">
             {steps.map((step, index) => (
@@ -105,7 +159,6 @@ const CompanySetup = () => {
           </div>
         </div>
 
-        {/* Form Card */}
         <div className="bg-card rounded-2xl border border-border/50 p-8 shadow-lg">
           <h2 className="font-display text-2xl font-bold mb-2">
             {steps[currentStep - 1].title}
@@ -117,7 +170,6 @@ const CompanySetup = () => {
             {currentStep === 4 && 'Upload your company logo and customize your brand'}
           </p>
 
-          {/* Step 1: Company Info */}
           {currentStep === 1 && (
             <div className="space-y-6">
               <div className="space-y-2">
@@ -159,7 +211,6 @@ const CompanySetup = () => {
             </div>
           )}
 
-          {/* Step 2: Contact Details */}
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -229,7 +280,6 @@ const CompanySetup = () => {
             </div>
           )}
 
-          {/* Step 3: Tax & Legal */}
           {currentStep === 3 && (
             <div className="space-y-6">
               <div className="space-y-2">
@@ -258,7 +308,6 @@ const CompanySetup = () => {
             </div>
           )}
 
-          {/* Step 4: Branding */}
           {currentStep === 4 && (
             <div className="space-y-6">
               <div className="space-y-2">
@@ -271,12 +320,22 @@ const CompanySetup = () => {
                   <p className="text-xs text-muted-foreground mb-4">
                     SVG, PNG, JPG up to 2MB
                   </p>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" type="button" onClick={() => logoInputRef.current?.click()}>
                     Browse Files
                   </Button>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                    className="hidden"
+                    onChange={(e) => handleLogoUpload(e.target.files?.[0] ?? null)}
+                  />
+                  {formData.logo && (
+                    <p className="text-xs text-muted-foreground mt-2">Selected: {formData.logo.name}</p>
+                  )}
                 </div>
               </div>
-              
+
               <div className="p-4 rounded-lg bg-success/10 border border-success/20">
                 <div className="flex items-start gap-3">
                   <CheckCircle className="w-5 h-5 text-success shrink-0 mt-0.5" />
@@ -291,7 +350,6 @@ const CompanySetup = () => {
             </div>
           )}
 
-          {/* Navigation */}
           <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
             <Button
               variant="ghost"
@@ -301,27 +359,26 @@ const CompanySetup = () => {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
-            
+
             {currentStep < 4 ? (
               <Button variant="gradient" onClick={handleNext}>
                 Continue
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             ) : (
-              <Button variant="hero" onClick={handleComplete}>
-                Complete Setup
+              <Button variant="hero" onClick={handleComplete} disabled={isSubmitting}>
+                {isSubmitting ? 'Saving...' : 'Complete Setup'}
                 <CheckCircle className="w-4 h-4 ml-2" />
               </Button>
             )}
           </div>
         </div>
 
-        {/* Skip Link */}
         <p className="text-center mt-6 text-sm text-muted-foreground">
           <Link to="/dashboard" className="text-primary hover:underline">
             Skip for now
           </Link>
-          {' '}— you can complete this later
+          {' '} - you can complete this later
         </p>
       </main>
     </div>

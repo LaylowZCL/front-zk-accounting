@@ -7,7 +7,8 @@ import { FileText, Users, CreditCard, TrendingUp, Clock, CheckCircle } from 'luc
 import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { DashboardSummary, getDashboardSummary } from '@/lib/business-api';
+import { DashboardSummary, getDashboardSummary, getSettings } from '@/lib/business-api';
+import { formatMoney } from '@/lib/currency';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -56,10 +57,16 @@ const ClientDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary>(fallbackSummary);
+  const [currency, setCurrency] = useState('MT');
+  const [headerSearch, setHeaderSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
-    getDashboardSummary()
-      .then((data) => setSummary(data))
+    Promise.all([getDashboardSummary(), getSettings()])
+      .then(([data, settings]) => {
+        setSummary(data);
+        setCurrency(settings.company?.currency || 'MT');
+      })
       .catch((error) => {
         toast.error(error instanceof Error ? error.message : 'Failed to load dashboard summary');
       });
@@ -68,6 +75,29 @@ const ClientDashboard = () => {
   const invoiceStatusData = useMemo(
     () => summary.invoiceStatus.map((item) => ({ ...item, color: item.name === 'Paid' ? 'hsl(var(--success))' : item.name === 'Pending' ? 'hsl(var(--accent))' : 'hsl(var(--destructive))' })),
     [summary.invoiceStatus]
+  );
+
+  const filteredRecentInvoices = useMemo(() => {
+    const query = headerSearch.trim().toLowerCase();
+    return summary.recentInvoices.filter((invoice) => {
+      const matchesSearch =
+        !query ||
+        invoice.id.toLowerCase().includes(query) ||
+        invoice.client.toLowerCase().includes(query);
+      const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [summary.recentInvoices, headerSearch, statusFilter]);
+
+  const headerNotifications = useMemo(
+    () => summary.recentInvoices.slice(0, 5).map((invoice) => ({
+      id: invoice.id,
+      title: `${invoice.id} - ${invoice.client}`,
+      description: `Status: ${invoice.status} | ${formatMoney(invoice.amount, currency)}`,
+      time: invoice.date,
+      unread: invoice.status !== 'paid',
+    })),
+    [summary.recentInvoices, currency]
   );
 
   const handleNewInvoice = () => {
@@ -85,6 +115,19 @@ const ClientDashboard = () => {
           showCreateButton
           createButtonLabel="New Invoice"
           onCreateClick={handleNewInvoice}
+          searchValue={headerSearch}
+          onSearchChange={setHeaderSearch}
+          onSearchSubmit={setHeaderSearch}
+          filterOptions={[
+            { value: 'all', label: 'All Statuses' },
+            { value: 'paid', label: 'Paid' },
+            { value: 'pending', label: 'Pending' },
+            { value: 'overdue', label: 'Overdue' },
+          ]}
+          activeFilter={statusFilter}
+          onFilterChange={setStatusFilter}
+          notifications={headerNotifications}
+          onNotificationClick={() => navigate('/dashboard/invoices')}
         />
 
         <main className="flex-1 overflow-y-auto px-4 lg:px-6 pt-4 space-y-6">
@@ -92,7 +135,7 @@ const ClientDashboard = () => {
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Weekly performance</p>
-                <h2 className="font-display text-3xl">${summary.totalRevenue.toLocaleString()}</h2>
+                <h2 className="font-display text-3xl">{formatMoney(summary.totalRevenue, currency)}</h2>
               </div>
               <div className="w-full max-w-md space-y-2">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -107,10 +150,10 @@ const ClientDashboard = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
-            <StatCard title="Total Revenue" value={`$${summary.totalRevenue.toLocaleString()}`} change="Updated from backend" changeType="positive" icon={TrendingUp} iconColor="from-primary to-accent" />
-            <StatCard title="Pending Invoices" value={String(summary.pendingInvoices)} change={`$${summary.pendingAmount.toLocaleString()} outstanding`} changeType="neutral" icon={Clock} iconColor="from-accent to-warning" />
+            <StatCard title="Total Revenue" value={formatMoney(summary.totalRevenue, currency)} change="Updated from backend" changeType="positive" icon={TrendingUp} iconColor="from-primary to-accent" />
+            <StatCard title="Pending Invoices" value={String(summary.pendingInvoices)} change={`${formatMoney(summary.pendingAmount, currency)} outstanding`} changeType="neutral" icon={Clock} iconColor="from-accent to-warning" />
             <StatCard title="Total Clients" value={String(summary.totalClients)} change="Updated from backend" changeType="positive" icon={Users} iconColor="from-primary to-muted-foreground" />
-            <StatCard title="Paid This Month" value={`$${summary.paidThisMonth.toLocaleString()}`} change={`${summary.paidInvoicesThisMonth} invoices`} changeType="neutral" icon={CheckCircle} iconColor="from-success to-accent" />
+            <StatCard title="Paid This Month" value={formatMoney(summary.paidThisMonth, currency)} change={`${summary.paidInvoicesThisMonth} invoices`} changeType="neutral" icon={CheckCircle} iconColor="from-success to-accent" />
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6">
@@ -119,7 +162,7 @@ const ClientDashboard = () => {
               <ChartContainer config={chartConfig} className="h-[250px] w-full">
                 <LineChart data={summary.revenueByMonth}>
                   <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
-                  <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `$${value / 1000}k`} />
+                  <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `${Math.round((Number(value) || 0) / 1000)}k${currency}`} />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Line type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ fill: 'hsl(var(--accent))', strokeWidth: 0, r: 3.5 }} />
                 </LineChart>
@@ -166,14 +209,14 @@ const ClientDashboard = () => {
               </div>
 
               <div className="space-y-3">
-                {summary.recentInvoices.map((invoice) => (
+                {filteredRecentInvoices.map((invoice) => (
                   <div key={invoice.id} className="flex items-center justify-between p-4 rounded-2xl glass-soft hover:bg-card/60 transition-colors">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center"><FileText className="w-4 h-4" /></div>
                       <div><p className="font-medium text-sm">{invoice.id}</p><p className="text-xs text-muted-foreground">{invoice.client}</p></div>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-sm">${invoice.amount.toLocaleString()}</p>
+                      <p className="font-semibold text-sm">{formatMoney(invoice.amount, currency)}</p>
                       <span className={`inline-block mt-1 px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[invoice.status as keyof typeof statusColors] || 'bg-secondary text-secondary-foreground'}`}>
                         {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
                       </span>
@@ -183,7 +226,7 @@ const ClientDashboard = () => {
               </div>
             </div>
 
-            <div className="surface-panel-dark p-5 lg:p-6">
+            <div className="surface-panel-dark p-5 lg:p-6 self-start h-fit">
               <h2 className="font-display text-lg mb-5 text-white">Quick Actions</h2>
               <div className="space-y-3">
                 <Button variant="outline" className="w-full justify-start gap-3 border-white/20 bg-white/10 text-white hover:bg-white/20" onClick={handleNewInvoice}><FileText className="w-4 h-4" />Create Invoice</Button>
@@ -199,3 +242,4 @@ const ClientDashboard = () => {
 };
 
 export default ClientDashboard;
+

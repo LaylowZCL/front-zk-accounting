@@ -30,11 +30,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import InvoiceFormDialog from '@/components/documents/InvoiceFormDialog';
 import DocumentViewDialog from '@/components/documents/DocumentViewDialog';
 import { Client, Invoice, Product } from '@/types/documents';
 import { toast } from 'sonner';
-import { convertInvoiceToReceipt, deleteInvoice, getWorkspaceDocumentDownloadUrl, listClients, listInvoices, listProducts, saveInvoice, sendWorkspaceDocument } from '@/lib/business-api';
+import { convertInvoiceToReceipt, deleteInvoice, duplicateInvoice, getSettings, getWorkspaceDocumentDownloadUrl, listClients, listInvoices, listProducts, saveInvoice, sendWorkspaceDocument } from '@/lib/business-api';
+import { formatMoney } from '@/lib/currency';
 
 const statusColors: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   paid: 'default',
@@ -44,17 +60,32 @@ const statusColors: Record<string, 'default' | 'secondary' | 'destructive' | 'ou
   draft: 'outline',
 };
 
+const paymentMethodOptions = [
+  { value: 'cash', label: 'Dinheiro' },
+  { value: 'credit_card', label: 'Cartao de Credito' },
+  { value: 'debit_card', label: 'Cartao de Debito' },
+  { value: 'bank_transfer', label: 'Transferencia Bancaria' },
+  { value: 'pix', label: 'PIX' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'other', label: 'Outro' },
+];
+
 const Invoices = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [currency, setCurrency] = useState('MT');
   const [isLoading, setIsLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [invoiceToConvert, setInvoiceToConvert] = useState<Invoice | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [isConverting, setIsConverting] = useState(false);
 
   useEffect(() => {
     if (searchParams.get('new') === 'true') {
@@ -63,25 +94,28 @@ const Invoices = () => {
     }
   }, [searchParams, setSearchParams]);
 
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [invoiceList, clientList, productList, settings] = await Promise.all([
+        listInvoices(),
+        listClients(),
+        listProducts(),
+        getSettings(),
+      ]);
+      setInvoices(invoiceList);
+      setClients(clientList);
+      setProducts(productList);
+      setCurrency(settings.company?.currency || 'MT');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load invoices');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      setIsLoading(true);
-      try {
-        const [invoiceList, clientList, productList] = await Promise.all([
-          listInvoices(),
-          listClients(),
-          listProducts(),
-        ]);
-        setInvoices(invoiceList);
-        setClients(clientList);
-        setProducts(productList);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to load invoices');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    load();
+    loadData();
   }, []);
 
   const filteredInvoices = invoices.filter((invoice) =>
@@ -135,13 +169,46 @@ const Invoices = () => {
     toast.success('Navigate to Receipts to create a receipt');
   };
 
-  const handleConvertToReceipt = async (invoice: Invoice) => {
-    if (!invoice.documentId) return toast.error('Missing internal invoice id');
+  const handleOpenConvertPopup = (invoice: Invoice) => {
+    if (!invoice.documentId) {
+      toast.error('Missing internal invoice id');
+      return;
+    }
+    setInvoiceToConvert(invoice);
+    setPaymentMethod('');
+    setConvertOpen(true);
+  };
+
+  const handleConfirmConvertToReceipt = async () => {
+    if (!invoiceToConvert?.documentId) return;
+    if (!paymentMethod) {
+      toast.error('Please select a payment method');
+      return;
+    }
+
+    setIsConverting(true);
     try {
-      await convertInvoiceToReceipt(invoice.documentId);
-      toast.success(`${invoice.id} converted to receipt`);
+      await convertInvoiceToReceipt(invoiceToConvert.documentId, { paymentMethod });
+      await loadData();
+      toast.success(`${invoiceToConvert.id} converted to receipt`);
+      setConvertOpen(false);
+      setInvoiceToConvert(null);
+      setPaymentMethod('');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to convert invoice');
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
+  const handleDuplicate = async (invoice: Invoice) => {
+    if (!invoice.documentId) return toast.error('Missing internal invoice id');
+    try {
+      const copy = await duplicateInvoice(invoice.documentId);
+      setInvoices([copy, ...invoices]);
+      toast.success(`${invoice.id} cloned successfully`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to clone invoice');
     }
   };
 
@@ -222,7 +289,7 @@ const Invoices = () => {
                       <TableCell>{invoice.client}</TableCell>
                       <TableCell>{invoice.date}</TableCell>
                       <TableCell>{invoice.dueDate}</TableCell>
-                      <TableCell className="font-medium">${invoice.amount.toLocaleString()}</TableCell>
+                      <TableCell className="font-medium">{formatMoney(invoice.amount, currency)}</TableCell>
                       <TableCell>
                         <Badge variant={statusColors[invoice.status]} className="capitalize">{invoice.status}</Badge>
                       </TableCell>
@@ -236,8 +303,9 @@ const Invoices = () => {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => handleView(invoice)}>View Details</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEdit(invoice)}>Edit Invoice</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDuplicate(invoice)}>Clone Invoice</DropdownMenuItem>
                             <DropdownMenuItem onClick={handleRecordPayment}>Record Payment</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleConvertToReceipt(invoice)}>Convert to Receipt</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenConvertPopup(invoice)}>Convert to Receipt</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleDownloadPDF(invoice)}>Download PDF</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleSendEmail(invoice)}>Send via Email</DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(invoice)}>Delete</DropdownMenuItem>
@@ -283,6 +351,40 @@ const Invoices = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={convertOpen} onOpenChange={setConvertOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Convert Invoice to Receipt</DialogTitle>
+            <DialogDescription>
+              Select the payment method used for {invoiceToConvert?.id}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Payment Method</label>
+            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select payment method" />
+              </SelectTrigger>
+              <SelectContent>
+                {paymentMethodOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConvertOpen(false)} disabled={isConverting}>Cancel</Button>
+            <Button onClick={handleConfirmConvertToReceipt} disabled={isConverting || !paymentMethod}>
+              {isConverting ? 'Converting...' : 'Confirm Conversion'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

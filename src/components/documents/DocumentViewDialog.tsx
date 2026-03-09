@@ -11,6 +11,7 @@ import { Printer, Download, Mail, Building2, Phone, Mail as MailIcon, Globe, Map
 import { Invoice, Quotation, Receipt } from '@/types/documents';
 import { toast } from 'sonner';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
+import { formatMoney } from '@/lib/currency';
 
 interface DocumentViewDialogProps {
   open: boolean;
@@ -22,6 +23,7 @@ interface DocumentViewDialogProps {
 const DocumentViewDialog = ({ open, onOpenChange, document, type }: DocumentViewDialogProps) => {
   const printRef = useRef<HTMLDivElement>(null);
   const { settings: companySettings, loading: settingsLoading } = useCompanySettings();
+  const currency = companySettings.currency || 'MT';
 
   if (!document) return null;
 
@@ -226,9 +228,9 @@ const DocumentViewDialog = ({ open, onOpenChange, document, type }: DocumentView
                     <tr key={item.id} className="border-b">
                       <td className="py-3">{item.description}</td>
                       <td className="text-right py-3">{item.quantity}</td>
-                      <td className="text-right py-3">${item.unitPrice.toFixed(2)}</td>
+                      <td className="text-right py-3">$</td>
                       <td className="text-right py-3">{item.taxRate}%</td>
-                      <td className="text-right py-3 font-medium">${item.total.toFixed(2)}</td>
+                      <td className="text-right py-3 font-medium">$</td>
                     </tr>
                   ))}
                 </tbody>
@@ -239,15 +241,15 @@ const DocumentViewDialog = ({ open, onOpenChange, document, type }: DocumentView
                 <div className="w-64 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span>${document.subtotal.toFixed(2)}</span>
+                    <span>$</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Tax</span>
-                    <span>${document.taxTotal.toFixed(2)}</span>
+                    <span>$</span>
                   </div>
                   <div className="flex justify-between font-bold text-lg border-t pt-2">
                     <span>Total</span>
-                    <span>${document.amount.toFixed(2)}</span>
+                    <span>$</span>
                   </div>
                 </div>
               </div>
@@ -269,7 +271,7 @@ const DocumentViewDialog = ({ open, onOpenChange, document, type }: DocumentView
               </div>
               <div className="text-right">
                 <p className="text-sm text-muted-foreground">Amount Paid</p>
-                <p className="text-2xl font-bold text-primary">${document.amount.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-primary">$</p>
               </div>
             </div>
           )}
@@ -288,3 +290,4 @@ const DocumentViewDialog = ({ open, onOpenChange, document, type }: DocumentView
 };
 
 export default DocumentViewDialog;
+

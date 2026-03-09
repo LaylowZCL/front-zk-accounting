@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Sidebar from '@/components/dashboard/Sidebar';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Save, Mail, Shield, Bell, Palette, Globe, Database } from 'lucide-react';
+import { getAdminSettings, updateAdminSettings } from '@/lib/admin-api';
 
 const AdminSettings = () => {
+  const [general, setGeneral] = useState({
+    platformName: 'BillFlow',
+    supportEmail: 'support@billflow.com',
+    platformDescription: 'Professional invoicing and billing platform for modern businesses.',
+    defaultCurrency: 'USD',
+    defaultTimezone: 'UTC',
+  });
+
   const [emailSettings, setEmailSettings] = useState({
     smtpHost: 'smtp.example.com',
     smtpPort: '587',
@@ -36,16 +45,169 @@ const AdminSettings = () => {
     passwordMinLength: '8',
   });
 
-  const handleSaveEmail = () => {
-    toast.success('Email settings saved successfully');
+  const [appearance, setAppearance] = useState({
+    primaryColor: '#6366f1',
+    logoUrl: '',
+    faviconUrl: '',
+  });
+
+  const [databaseInfo, setDatabaseInfo] = useState({
+    status: 'connected',
+    host: 'db.billflow.com',
+    name: 'billflow_production',
+    size: '2.4 GB',
+  });
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await getAdminSettings();
+
+        if (data.general) {
+          setGeneral({
+            platformName: data.general.platform_name ?? 'BillFlow',
+            supportEmail: data.general.support_email ?? 'support@billflow.com',
+            platformDescription: data.general.platform_description ?? 'Professional invoicing and billing platform for modern businesses.',
+            defaultCurrency: data.general.default_currency ?? 'USD',
+            defaultTimezone: data.general.default_timezone ?? 'UTC',
+          });
+        }
+
+        if (data.email) {
+          setEmailSettings({
+            smtpHost: data.email.smtp_host ?? 'smtp.example.com',
+            smtpPort: data.email.smtp_port ?? '587',
+            smtpUser: data.email.smtp_user ?? 'noreply@billflow.com',
+            fromName: data.email.from_name ?? 'BillFlow',
+            fromEmail: data.email.from_email ?? 'noreply@billflow.com',
+          });
+        }
+
+        if (data.notifications) {
+          setNotifications({
+            newSignups: Boolean(data.notifications.new_signups ?? true),
+            failedPayments: Boolean(data.notifications.failed_payments ?? true),
+            supportTickets: Boolean(data.notifications.support_tickets ?? true),
+            systemAlerts: Boolean(data.notifications.system_alerts ?? true),
+            weeklyReport: Boolean(data.notifications.weekly_report ?? false),
+            monthlyReport: Boolean(data.notifications.monthly_report ?? true),
+          });
+        }
+
+        if (data.security) {
+          setSecuritySettings({
+            twoFactorRequired: Boolean(data.security.two_factor_required ?? false),
+            sessionTimeout: String(data.security.session_timeout ?? '30'),
+            maxLoginAttempts: String(data.security.max_login_attempts ?? '5'),
+            passwordMinLength: String(data.security.password_min_length ?? '8'),
+          });
+        }
+
+        if (data.appearance) {
+          setAppearance({
+            primaryColor: data.appearance.primary_color ?? '#6366f1',
+            logoUrl: data.appearance.logo_url ?? '',
+            faviconUrl: data.appearance.favicon_url ?? '',
+          });
+        }
+
+        if (data.database) {
+          setDatabaseInfo({
+            status: data.database.status ?? 'connected',
+            host: data.database.host ?? 'db.billflow.com',
+            name: data.database.name ?? 'billflow_production',
+            size: data.database.size ?? '2.4 GB',
+          });
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to load admin settings');
+      }
+    };
+
+    load();
+  }, []);
+
+  const handleSaveGeneral = async () => {
+    try {
+      await updateAdminSettings({
+        general: {
+          platform_name: general.platformName,
+          support_email: general.supportEmail,
+          platform_description: general.platformDescription,
+          default_currency: general.defaultCurrency,
+          default_timezone: general.defaultTimezone,
+        },
+      });
+      toast.success('Settings saved');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save general settings');
+    }
   };
 
-  const handleSaveNotifications = () => {
-    toast.success('Notification preferences saved');
+  const handleSaveEmail = async () => {
+    try {
+      await updateAdminSettings({
+        email: {
+          smtp_host: emailSettings.smtpHost,
+          smtp_port: emailSettings.smtpPort,
+          smtp_user: emailSettings.smtpUser,
+          from_name: emailSettings.fromName,
+          from_email: emailSettings.fromEmail,
+        },
+      });
+      toast.success('Email settings saved successfully');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save email settings');
+    }
   };
 
-  const handleSaveSecurity = () => {
-    toast.success('Security settings updated');
+  const handleSaveNotifications = async () => {
+    try {
+      await updateAdminSettings({
+        notifications: {
+          new_signups: notifications.newSignups,
+          failed_payments: notifications.failedPayments,
+          support_tickets: notifications.supportTickets,
+          system_alerts: notifications.systemAlerts,
+          weekly_report: notifications.weeklyReport,
+          monthly_report: notifications.monthlyReport,
+        },
+      });
+      toast.success('Notification preferences saved');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save notification settings');
+    }
+  };
+
+  const handleSaveSecurity = async () => {
+    try {
+      await updateAdminSettings({
+        security: {
+          two_factor_required: securitySettings.twoFactorRequired,
+          session_timeout: securitySettings.sessionTimeout,
+          max_login_attempts: securitySettings.maxLoginAttempts,
+          password_min_length: securitySettings.passwordMinLength,
+        },
+      });
+      toast.success('Security settings updated');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save security settings');
+    }
+  };
+
+  const handleSaveAppearance = async () => {
+    try {
+      await updateAdminSettings({
+        appearance: {
+          primary_color: appearance.primaryColor,
+          logo_url: appearance.logoUrl,
+          favicon_url: appearance.faviconUrl,
+        },
+      });
+      toast.success('Appearance settings saved');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save appearance settings');
+    }
   };
 
   return (
@@ -84,7 +246,6 @@ const AdminSettings = () => {
               </TabsTrigger>
             </TabsList>
 
-            {/* General Settings */}
             <TabsContent value="general">
               <Card>
                 <CardHeader>
@@ -95,21 +256,21 @@ const AdminSettings = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Platform Name</Label>
-                      <Input defaultValue="BillFlow" />
+                      <Input value={general.platformName} onChange={(e) => setGeneral({ ...general, platformName: e.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <Label>Support Email</Label>
-                      <Input defaultValue="support@billflow.com" />
+                      <Input value={general.supportEmail} onChange={(e) => setGeneral({ ...general, supportEmail: e.target.value })} />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Platform Description</Label>
-                    <Textarea defaultValue="Professional invoicing and billing platform for modern businesses." />
+                    <Textarea value={general.platformDescription} onChange={(e) => setGeneral({ ...general, platformDescription: e.target.value })} />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Default Currency</Label>
-                      <select className="w-full h-10 px-3 rounded-md border border-input bg-background">
+                      <select className="w-full h-10 px-3 rounded-md border border-input bg-background" value={general.defaultCurrency} onChange={(e) => setGeneral({ ...general, defaultCurrency: e.target.value })}>
                         <option value="USD">USD - US Dollar</option>
                         <option value="EUR">EUR - Euro</option>
                         <option value="GBP">GBP - British Pound</option>
@@ -117,7 +278,7 @@ const AdminSettings = () => {
                     </div>
                     <div className="space-y-2">
                       <Label>Default Timezone</Label>
-                      <select className="w-full h-10 px-3 rounded-md border border-input bg-background">
+                      <select className="w-full h-10 px-3 rounded-md border border-input bg-background" value={general.defaultTimezone} onChange={(e) => setGeneral({ ...general, defaultTimezone: e.target.value })}>
                         <option value="UTC">UTC</option>
                         <option value="EST">Eastern Time</option>
                         <option value="PST">Pacific Time</option>
@@ -125,7 +286,7 @@ const AdminSettings = () => {
                     </div>
                   </div>
                   <div className="flex justify-end pt-4">
-                    <Button onClick={() => toast.success('Settings saved')}>
+                    <Button onClick={handleSaveGeneral}>
                       <Save className="w-4 h-4 mr-2" />
                       Save Changes
                     </Button>
@@ -134,7 +295,6 @@ const AdminSettings = () => {
               </Card>
             </TabsContent>
 
-            {/* Email Settings */}
             <TabsContent value="email">
               <Card>
                 <CardHeader>
@@ -145,44 +305,29 @@ const AdminSettings = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>SMTP Host</Label>
-                      <Input
-                        value={emailSettings.smtpHost}
-                        onChange={(e) => setEmailSettings({ ...emailSettings, smtpHost: e.target.value })}
-                      />
+                      <Input value={emailSettings.smtpHost} onChange={(e) => setEmailSettings({ ...emailSettings, smtpHost: e.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <Label>SMTP Port</Label>
-                      <Input
-                        value={emailSettings.smtpPort}
-                        onChange={(e) => setEmailSettings({ ...emailSettings, smtpPort: e.target.value })}
-                      />
+                      <Input value={emailSettings.smtpPort} onChange={(e) => setEmailSettings({ ...emailSettings, smtpPort: e.target.value })} />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label>SMTP Username</Label>
-                    <Input
-                      value={emailSettings.smtpUser}
-                      onChange={(e) => setEmailSettings({ ...emailSettings, smtpUser: e.target.value })}
-                    />
+                    <Input value={emailSettings.smtpUser} onChange={(e) => setEmailSettings({ ...emailSettings, smtpUser: e.target.value })} />
                   </div>
                   <div className="space-y-2">
                     <Label>SMTP Password</Label>
-                    <Input type="password" placeholder="••••••••" />
+                    <Input type="password" placeholder="Enter password" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>From Name</Label>
-                      <Input
-                        value={emailSettings.fromName}
-                        onChange={(e) => setEmailSettings({ ...emailSettings, fromName: e.target.value })}
-                      />
+                      <Input value={emailSettings.fromName} onChange={(e) => setEmailSettings({ ...emailSettings, fromName: e.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <Label>From Email</Label>
-                      <Input
-                        value={emailSettings.fromEmail}
-                        onChange={(e) => setEmailSettings({ ...emailSettings, fromEmail: e.target.value })}
-                      />
+                      <Input value={emailSettings.fromEmail} onChange={(e) => setEmailSettings({ ...emailSettings, fromEmail: e.target.value })} />
                     </div>
                   </div>
                   <div className="flex justify-between pt-4">
@@ -198,7 +343,6 @@ const AdminSettings = () => {
               </Card>
             </TabsContent>
 
-            {/* Notification Settings */}
             <TabsContent value="notifications">
               <Card>
                 <CardHeader>
@@ -214,40 +358,28 @@ const AdminSettings = () => {
                           <Label>New User Signups</Label>
                           <p className="text-sm text-muted-foreground">Get notified when new users register</p>
                         </div>
-                        <Switch
-                          checked={notifications.newSignups}
-                          onCheckedChange={(checked) => setNotifications({ ...notifications, newSignups: checked })}
-                        />
+                        <Switch checked={notifications.newSignups} onCheckedChange={(checked) => setNotifications({ ...notifications, newSignups: checked })} />
                       </div>
                       <div className="flex items-center justify-between">
                         <div>
                           <Label>Failed Payments</Label>
                           <p className="text-sm text-muted-foreground">Get notified about payment failures</p>
                         </div>
-                        <Switch
-                          checked={notifications.failedPayments}
-                          onCheckedChange={(checked) => setNotifications({ ...notifications, failedPayments: checked })}
-                        />
+                        <Switch checked={notifications.failedPayments} onCheckedChange={(checked) => setNotifications({ ...notifications, failedPayments: checked })} />
                       </div>
                       <div className="flex items-center justify-between">
                         <div>
                           <Label>Support Tickets</Label>
                           <p className="text-sm text-muted-foreground">Get notified about new support tickets</p>
                         </div>
-                        <Switch
-                          checked={notifications.supportTickets}
-                          onCheckedChange={(checked) => setNotifications({ ...notifications, supportTickets: checked })}
-                        />
+                        <Switch checked={notifications.supportTickets} onCheckedChange={(checked) => setNotifications({ ...notifications, supportTickets: checked })} />
                       </div>
                       <div className="flex items-center justify-between">
                         <div>
                           <Label>System Alerts</Label>
                           <p className="text-sm text-muted-foreground">Critical system notifications</p>
                         </div>
-                        <Switch
-                          checked={notifications.systemAlerts}
-                          onCheckedChange={(checked) => setNotifications({ ...notifications, systemAlerts: checked })}
-                        />
+                        <Switch checked={notifications.systemAlerts} onCheckedChange={(checked) => setNotifications({ ...notifications, systemAlerts: checked })} />
                       </div>
                     </div>
                   </div>
@@ -259,20 +391,14 @@ const AdminSettings = () => {
                           <Label>Weekly Report</Label>
                           <p className="text-sm text-muted-foreground">Receive a weekly summary</p>
                         </div>
-                        <Switch
-                          checked={notifications.weeklyReport}
-                          onCheckedChange={(checked) => setNotifications({ ...notifications, weeklyReport: checked })}
-                        />
+                        <Switch checked={notifications.weeklyReport} onCheckedChange={(checked) => setNotifications({ ...notifications, weeklyReport: checked })} />
                       </div>
                       <div className="flex items-center justify-between">
                         <div>
                           <Label>Monthly Report</Label>
                           <p className="text-sm text-muted-foreground">Receive a monthly summary</p>
                         </div>
-                        <Switch
-                          checked={notifications.monthlyReport}
-                          onCheckedChange={(checked) => setNotifications({ ...notifications, monthlyReport: checked })}
-                        />
+                        <Switch checked={notifications.monthlyReport} onCheckedChange={(checked) => setNotifications({ ...notifications, monthlyReport: checked })} />
                       </div>
                     </div>
                   </div>
@@ -286,7 +412,6 @@ const AdminSettings = () => {
               </Card>
             </TabsContent>
 
-            {/* Security Settings */}
             <TabsContent value="security">
               <Card>
                 <CardHeader>
@@ -299,36 +424,21 @@ const AdminSettings = () => {
                       <Label>Require Two-Factor Authentication</Label>
                       <p className="text-sm text-muted-foreground">Require 2FA for all admin users</p>
                     </div>
-                    <Switch
-                      checked={securitySettings.twoFactorRequired}
-                      onCheckedChange={(checked) => setSecuritySettings({ ...securitySettings, twoFactorRequired: checked })}
-                    />
+                    <Switch checked={securitySettings.twoFactorRequired} onCheckedChange={(checked) => setSecuritySettings({ ...securitySettings, twoFactorRequired: checked })} />
                   </div>
                   <div className="grid grid-cols-2 gap-4 pt-4">
                     <div className="space-y-2">
                       <Label>Session Timeout (minutes)</Label>
-                      <Input
-                        type="number"
-                        value={securitySettings.sessionTimeout}
-                        onChange={(e) => setSecuritySettings({ ...securitySettings, sessionTimeout: e.target.value })}
-                      />
+                      <Input type="number" value={securitySettings.sessionTimeout} onChange={(e) => setSecuritySettings({ ...securitySettings, sessionTimeout: e.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <Label>Max Login Attempts</Label>
-                      <Input
-                        type="number"
-                        value={securitySettings.maxLoginAttempts}
-                        onChange={(e) => setSecuritySettings({ ...securitySettings, maxLoginAttempts: e.target.value })}
-                      />
+                      <Input type="number" value={securitySettings.maxLoginAttempts} onChange={(e) => setSecuritySettings({ ...securitySettings, maxLoginAttempts: e.target.value })} />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Minimum Password Length</Label>
-                    <Input
-                      type="number"
-                      value={securitySettings.passwordMinLength}
-                      onChange={(e) => setSecuritySettings({ ...securitySettings, passwordMinLength: e.target.value })}
-                    />
+                    <Input type="number" value={securitySettings.passwordMinLength} onChange={(e) => setSecuritySettings({ ...securitySettings, passwordMinLength: e.target.value })} />
                   </div>
                   <div className="flex justify-end pt-4">
                     <Button onClick={handleSaveSecurity}>
@@ -340,7 +450,6 @@ const AdminSettings = () => {
               </Card>
             </TabsContent>
 
-            {/* Appearance Settings */}
             <TabsContent value="appearance">
               <Card>
                 <CardHeader>
@@ -351,20 +460,20 @@ const AdminSettings = () => {
                   <div className="space-y-2">
                     <Label>Primary Color</Label>
                     <div className="flex gap-2">
-                      <Input type="color" className="w-16 h-10 p-1" defaultValue="#6366f1" />
-                      <Input defaultValue="#6366f1" className="flex-1" />
+                      <Input type="color" className="w-16 h-10 p-1" value={appearance.primaryColor} onChange={(e) => setAppearance({ ...appearance, primaryColor: e.target.value })} />
+                      <Input value={appearance.primaryColor} className="flex-1" onChange={(e) => setAppearance({ ...appearance, primaryColor: e.target.value })} />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Logo URL</Label>
-                    <Input placeholder="https://example.com/logo.png" />
+                    <Input placeholder="https://example.com/logo.png" value={appearance.logoUrl} onChange={(e) => setAppearance({ ...appearance, logoUrl: e.target.value })} />
                   </div>
                   <div className="space-y-2">
                     <Label>Favicon URL</Label>
-                    <Input placeholder="https://example.com/favicon.ico" />
+                    <Input placeholder="https://example.com/favicon.ico" value={appearance.faviconUrl} onChange={(e) => setAppearance({ ...appearance, faviconUrl: e.target.value })} />
                   </div>
                   <div className="flex justify-end pt-4">
-                    <Button onClick={() => toast.success('Appearance settings saved')}>
+                    <Button onClick={handleSaveAppearance}>
                       <Save className="w-4 h-4 mr-2" />
                       Save Appearance
                     </Button>
@@ -373,7 +482,6 @@ const AdminSettings = () => {
               </Card>
             </TabsContent>
 
-            {/* Database Settings */}
             <TabsContent value="database">
               <Card>
                 <CardHeader>
@@ -384,12 +492,12 @@ const AdminSettings = () => {
                   <div className="p-4 rounded-lg bg-secondary/50 border">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium">Database Status</span>
-                      <span className="text-sm text-success">Connected</span>
+                      <span className="text-sm text-success">{databaseInfo.status}</span>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      <p>Host: db.billflow.com</p>
-                      <p>Database: billflow_production</p>
-                      <p>Size: 2.4 GB</p>
+                      <p>Host: {databaseInfo.host}</p>
+                      <p>Database: {databaseInfo.name}</p>
+                      <p>Size: {databaseInfo.size}</p>
                     </div>
                   </div>
                   <div className="flex gap-4">

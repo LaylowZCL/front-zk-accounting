@@ -1,41 +1,12 @@
+import { useEffect, useMemo, useState } from 'react';
 import Sidebar from '@/components/dashboard/Sidebar';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Users, Building2, DollarSign, FileText } from 'lucide-react';
-
-const revenueData = [
-  { month: 'Jan', revenue: 32000, newCompanies: 12 },
-  { month: 'Feb', revenue: 35000, newCompanies: 18 },
-  { month: 'Mar', revenue: 38500, newCompanies: 15 },
-  { month: 'Apr', revenue: 42000, newCompanies: 22 },
-  { month: 'May', revenue: 45000, newCompanies: 28 },
-  { month: 'Jun', revenue: 52400, newCompanies: 35 },
-];
-
-const planDistribution = [
-  { name: 'Starter', value: 145, color: 'hsl(var(--success))' },
-  { name: 'Professional', value: 198, color: 'hsl(var(--primary))' },
-  { name: 'Enterprise', value: 55, color: 'hsl(var(--warning))' },
-];
-
-const userGrowth = [
-  { week: 'W1', users: 2450 },
-  { week: 'W2', users: 2520 },
-  { week: 'W3', users: 2680 },
-  { week: 'W4', users: 2847 },
-];
-
-const invoiceVolume = [
-  { day: 'Mon', invoices: 245 },
-  { day: 'Tue', invoices: 312 },
-  { day: 'Wed', invoices: 287 },
-  { day: 'Thu', invoices: 356 },
-  { day: 'Fri', invoices: 298 },
-  { day: 'Sat', invoices: 145 },
-  { day: 'Sun', invoices: 98 },
-];
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
+import { TrendingUp, Users, Building2, DollarSign, FileText } from 'lucide-react';
+import { toast } from 'sonner';
+import { getAdminAnalytics, getAdminDashboard } from '@/lib/admin-api';
 
 const chartConfig = {
   revenue: { label: 'Revenue', color: 'hsl(var(--primary))' },
@@ -44,7 +15,46 @@ const chartConfig = {
   invoices: { label: 'Invoices', color: 'hsl(var(--warning))' },
 };
 
+const colors = ['hsl(var(--success))', 'hsl(var(--primary))', 'hsl(var(--warning))', 'hsl(var(--info))'];
+
 const Analytics = () => {
+  const [loading, setLoading] = useState(true);
+  const [revenueData, setRevenueData] = useState<Array<{ month: string; revenue: number; newCompanies: number }>>([]);
+  const [planDistribution, setPlanDistribution] = useState<Array<{ name: string; value: number; color: string }>>([]);
+  const [invoiceVolume, setInvoiceVolume] = useState<Array<{ day: string; invoices: number }>>([]);
+  const [totals, setTotals] = useState({ users: 0, activeCompanies: 0, monthlyRevenue: 0, activeSubscriptions: 0 });
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [analytics, dashboard] = await Promise.all([getAdminAnalytics(), getAdminDashboard()]);
+        setRevenueData(analytics.revenueData ?? []);
+        setInvoiceVolume(analytics.invoiceVolume ?? []);
+        setPlanDistribution(
+          (analytics.planDistribution ?? []).map((item, index) => ({
+            ...item,
+            color: colors[index % colors.length],
+          }))
+        );
+        setTotals({
+          users: Number(dashboard.totals?.users ?? 0),
+          activeCompanies: Number(dashboard.totals?.active_companies ?? 0),
+          monthlyRevenue: Number(dashboard.totals?.monthly_revenue ?? 0),
+          activeSubscriptions: Number(dashboard.totals?.active_subscriptions ?? 0),
+        });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to load analytics');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, []);
+
+  const totalInvoices = useMemo(() => invoiceVolume.reduce((acc, row) => acc + Number(row.invoices ?? 0), 0), [invoiceVolume]);
+
   return (
     <div className="flex h-screen bg-background">
       <Sidebar userType="local" />
@@ -53,17 +63,16 @@ const Analytics = () => {
         <DashboardHeader title="Analytics" subtitle="Platform performance metrics" />
 
         <main className="flex-1 overflow-y-auto p-6">
-          {/* Key Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-muted-foreground text-sm">Monthly Revenue</p>
-                    <p className="text-2xl font-bold">$52,400</p>
+                    <p className="text-2xl font-bold">${totals.monthlyRevenue.toLocaleString()}</p>
                     <div className="flex items-center gap-1 text-success text-sm mt-1">
                       <TrendingUp className="w-4 h-4" />
-                      <span>+16.4% from last month</span>
+                      <span>{loading ? 'Loading...' : 'Live from API'}</span>
                     </div>
                   </div>
                   <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -78,11 +87,7 @@ const Analytics = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-muted-foreground text-sm">Active Companies</p>
-                    <p className="text-2xl font-bold">456</p>
-                    <div className="flex items-center gap-1 text-success text-sm mt-1">
-                      <TrendingUp className="w-4 h-4" />
-                      <span>+28 this month</span>
-                    </div>
+                    <p className="text-2xl font-bold">{totals.activeCompanies.toLocaleString()}</p>
                   </div>
                   <div className="w-12 h-12 rounded-lg bg-success/10 flex items-center justify-center">
                     <Building2 className="w-6 h-6 text-success" />
@@ -96,11 +101,7 @@ const Analytics = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-muted-foreground text-sm">Total Users</p>
-                    <p className="text-2xl font-bold">2,847</p>
-                    <div className="flex items-center gap-1 text-success text-sm mt-1">
-                      <TrendingUp className="w-4 h-4" />
-                      <span>+124 this week</span>
-                    </div>
+                    <p className="text-2xl font-bold">{totals.users.toLocaleString()}</p>
                   </div>
                   <div className="w-12 h-12 rounded-lg bg-info/10 flex items-center justify-center">
                     <Users className="w-6 h-6 text-info" />
@@ -113,12 +114,8 @@ const Analytics = () => {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-muted-foreground text-sm">Invoices Processed</p>
-                    <p className="text-2xl font-bold">15,847</p>
-                    <div className="flex items-center gap-1 text-destructive text-sm mt-1">
-                      <TrendingDown className="w-4 h-4" />
-                      <span>-3.2% from last month</span>
-                    </div>
+                    <p className="text-muted-foreground text-sm">Invoices This Week</p>
+                    <p className="text-2xl font-bold">{totalInvoices.toLocaleString()}</p>
                   </div>
                   <div className="w-12 h-12 rounded-lg bg-warning/10 flex items-center justify-center">
                     <FileText className="w-6 h-6 text-warning" />
@@ -128,13 +125,9 @@ const Analytics = () => {
             </Card>
           </div>
 
-          {/* Charts Row 1 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Revenue Trend */}
             <Card>
-              <CardHeader>
-                <CardTitle>Revenue Trend</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Revenue Trend</CardTitle></CardHeader>
               <CardContent>
                 <ChartContainer config={chartConfig} className="h-[300px]">
                   <AreaChart data={revenueData}>
@@ -142,23 +135,14 @@ const Analytics = () => {
                     <XAxis dataKey="month" className="text-xs" />
                     <YAxis className="text-xs" tickFormatter={(value) => `$${value / 1000}k`} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Area
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke="hsl(var(--primary))"
-                      fill="hsl(var(--primary) / 0.2)"
-                      strokeWidth={2}
-                    />
+                    <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.2)" strokeWidth={2} />
                   </AreaChart>
                 </ChartContainer>
               </CardContent>
             </Card>
 
-            {/* New Companies */}
             <Card>
-              <CardHeader>
-                <CardTitle>New Company Registrations</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>New Company Registrations</CardTitle></CardHeader>
               <CardContent>
                 <ChartContainer config={chartConfig} className="h-[300px]">
                   <BarChart data={revenueData}>
@@ -173,25 +157,13 @@ const Analytics = () => {
             </Card>
           </div>
 
-          {/* Charts Row 2 */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Plan Distribution */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-              <CardHeader>
-                <CardTitle>Plan Distribution</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Plan Distribution</CardTitle></CardHeader>
               <CardContent>
                 <ChartContainer config={chartConfig} className="h-[250px]">
                   <PieChart>
-                    <Pie
-                      data={planDistribution}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
+                    <Pie data={planDistribution} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value">
                       {planDistribution.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
@@ -203,44 +175,17 @@ const Analytics = () => {
               </CardContent>
             </Card>
 
-            {/* User Growth */}
             <Card>
-              <CardHeader>
-                <CardTitle>User Growth (Last 4 Weeks)</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Daily Invoice Volume</CardTitle></CardHeader>
               <CardContent>
                 <ChartContainer config={chartConfig} className="h-[250px]">
-                  <LineChart data={userGrowth}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="week" className="text-xs" />
-                    <YAxis className="text-xs" domain={['auto', 'auto']} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Line
-                      type="monotone"
-                      dataKey="users"
-                      stroke="hsl(var(--info))"
-                      strokeWidth={2}
-                      dot={{ fill: 'hsl(var(--info))' }}
-                    />
-                  </LineChart>
-                </ChartContainer>
-              </CardContent>
-            </Card>
-
-            {/* Invoice Volume */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Daily Invoice Volume</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ChartContainer config={chartConfig} className="h-[250px]">
-                  <BarChart data={invoiceVolume}>
+                  <LineChart data={invoiceVolume}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="day" className="text-xs" />
                     <YAxis className="text-xs" />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="invoices" fill="hsl(var(--warning))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
+                    <Line type="monotone" dataKey="invoices" stroke="hsl(var(--warning))" strokeWidth={2} dot={{ fill: 'hsl(var(--warning))' }} />
+                  </LineChart>
                 </ChartContainer>
               </CardContent>
             </Card>

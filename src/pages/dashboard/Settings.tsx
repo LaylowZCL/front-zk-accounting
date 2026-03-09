@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Sidebar from '@/components/dashboard/Sidebar';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { Button } from '@/components/ui/button';
@@ -18,11 +18,15 @@ import {
   Upload,
 } from 'lucide-react';
 import { getSettings, saveSettings, SettingsPayload } from '@/lib/business-api';
+import { normalizeCurrency } from '@/lib/currency';
+import { getStoredThemeMode, setThemeMode, ThemeMode } from '@/lib/theme';
 import { toast } from 'sonner';
 
 const Settings = () => {
   const [settings, setSettings] = useState<SettingsPayload>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => getStoredThemeMode());
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     getSettings()
@@ -45,6 +49,34 @@ const Settings = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleThemeChange = (isDark: boolean) => {
+    const nextMode: ThemeMode = isDark ? 'dark' : 'light';
+    setThemeModeState(nextMode);
+    setThemeMode(nextMode);
+    toast.success(`Theme changed to ${nextMode} mode`);
+  };
+
+  const handleLogoFile = (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Logo must be up to 2MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      patchSettings({ company: { ...settings.company, logo: result, logo_url: result } });
+      toast.success('Logo loaded. Save changes to apply.');
+    };
+    reader.onerror = () => toast.error('Failed to read logo file.');
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -71,16 +103,30 @@ const Settings = () => {
               <Card>
                 <CardHeader><CardTitle>Company Information</CardTitle><CardDescription>Update company details for invoices</CardDescription></CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="w-16 h-16"><AvatarImage src={settings.company?.logo_url || settings.company?.logo || ''} /><AvatarFallback className="text-sm">LOGO</AvatarFallback></Avatar>
+                    <Button variant="outline" className="gap-2" type="button" onClick={() => logoInputRef.current?.click()}><Upload className="w-4 h-4" />Upload Logo</Button>
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                      className="hidden"
+                      onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
+                    />
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2"><Label>Company Name</Label><Input value={settings.company?.name || ''} onChange={(e) => patchSettings({ company: { ...settings.company, name: e.target.value } })} /></div>
                     <div className="space-y-2"><Label>Tax Number</Label><Input value={settings.company?.tax_number || ''} onChange={(e) => patchSettings({ company: { ...settings.company, tax_number: e.target.value } })} /></div>
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label>Currency</Label><Input value={settings.company?.currency || 'MT'} onChange={(e) => patchSettings({ company: { ...settings.company, currency: normalizeCurrency(e.target.value) } })} placeholder="MT" /></div>
+                    <div className="space-y-2"><Label>Business Email</Label><Input type="email" value={settings.company?.email || ''} onChange={(e) => patchSettings({ company: { ...settings.company, email: e.target.value } })} /></div>
+                  </div>
                   <div className="space-y-2"><Label>Address</Label><Textarea value={settings.company?.address || ''} onChange={(e) => patchSettings({ company: { ...settings.company, address: e.target.value } })} /></div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2"><Label>Phone</Label><Input value={settings.company?.phone || ''} onChange={(e) => patchSettings({ company: { ...settings.company, phone: e.target.value } })} /></div>
-                    <div className="space-y-2"><Label>Business Email</Label><Input type="email" value={settings.company?.email || ''} onChange={(e) => patchSettings({ company: { ...settings.company, email: e.target.value } })} /></div>
                   </div>
-                  <Button disabled={isSaving} onClick={() => handleSave({ company: settings.company }, 'Company settings saved')}>Save Changes</Button>
+                  <Button disabled={isSaving} onClick={() => handleSave({ company: { ...settings.company, currency: normalizeCurrency(settings.company?.currency) } }, 'Company settings saved')}>Save Changes</Button>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -131,6 +177,13 @@ const Settings = () => {
               <Card>
                 <CardHeader><CardTitle>Invoice Branding</CardTitle><CardDescription>Customize invoice visuals</CardDescription></CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                    <div>
+                      <Label>Dark Mode</Label>
+                      <p className="text-sm text-muted-foreground">Switch between light and dark appearance</p>
+                    </div>
+                    <Switch checked={themeMode === 'dark'} onCheckedChange={handleThemeChange} />
+                  </div>
                   <div className="space-y-2"><Label>Invoice Number Prefix</Label><Input value={settings.branding?.invoice_prefix || ''} onChange={(e) => patchSettings({ branding: { ...settings.branding, invoice_prefix: e.target.value } })} /></div>
                   <div className="space-y-2"><Label>Invoice Footer Text</Label><Textarea value={settings.branding?.invoice_footer || ''} onChange={(e) => patchSettings({ branding: { ...settings.branding, invoice_footer: e.target.value } })} /></div>
                   <Button disabled={isSaving} onClick={() => handleSave({ branding: settings.branding }, 'Branding saved')}>Save Branding</Button>

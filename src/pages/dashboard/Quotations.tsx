@@ -33,7 +33,8 @@ import QuotationFormDialog from '@/components/documents/QuotationFormDialog';
 import DocumentViewDialog from '@/components/documents/DocumentViewDialog';
 import { Client, Product, Quotation } from '@/types/documents';
 import { toast } from 'sonner';
-import { convertQuotationToInvoice, deleteQuotation, getWorkspaceDocumentDownloadUrl, listClients, listProducts, listQuotations, saveQuotation, sendWorkspaceDocument } from '@/lib/business-api';
+import { convertQuotationToInvoice, deleteQuotation, duplicateQuotation, getSettings, getWorkspaceDocumentDownloadUrl, listClients, listProducts, listQuotations, saveQuotation, sendWorkspaceDocument } from '@/lib/business-api';
+import { formatMoney } from '@/lib/currency';
 
 const statusColors: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   pending: 'secondary',
@@ -48,31 +49,35 @@ const Quotations = () => {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [currency, setCurrency] = useState('MT');
   const [isLoading, setIsLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
 
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [quotes, clientList, productList, settings] = await Promise.all([
+        listQuotations(),
+        listClients(),
+        listProducts(),
+        getSettings(),
+      ]);
+      setQuotations(quotes);
+      setClients(clientList);
+      setProducts(productList);
+      setCurrency(settings.company?.currency || 'MT');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load quotations');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      setIsLoading(true);
-      try {
-        const [quotes, clientList, productList] = await Promise.all([
-          listQuotations(),
-          listClients(),
-          listProducts(),
-        ]);
-        setQuotations(quotes);
-        setClients(clientList);
-        setProducts(productList);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to load quotations');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    load();
+    loadData();
   }, []);
 
   const filteredQuotations = quotations.filter((quote) =>
@@ -123,9 +128,21 @@ const Quotations = () => {
     if (!quotation.documentId) return toast.error('Missing internal quotation id');
     try {
       await convertQuotationToInvoice(quotation.documentId);
-      toast.success(`Converting ${quotation.id} to invoice`);
+      await loadData();
+      toast.success(`${quotation.id} converted to invoice`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to convert quotation');
+    }
+  };
+
+  const handleDuplicate = async (quotation: Quotation) => {
+    if (!quotation.documentId) return toast.error('Missing internal quotation id');
+    try {
+      const copy = await duplicateQuotation(quotation.documentId);
+      setQuotations([copy, ...quotations]);
+      toast.success(`${quotation.id} cloned successfully`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to clone quotation');
     }
   };
 
@@ -206,7 +223,7 @@ const Quotations = () => {
                       <TableCell>{quote.client}</TableCell>
                       <TableCell>{quote.date}</TableCell>
                       <TableCell>{quote.validUntil}</TableCell>
-                      <TableCell className="font-medium">${quote.amount.toLocaleString()}</TableCell>
+                      <TableCell className="font-medium">{formatMoney(quote.amount, currency)}</TableCell>
                       <TableCell><Badge variant={statusColors[quote.status]} className="capitalize">{quote.status}</Badge></TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -214,6 +231,7 @@ const Quotations = () => {
                           <DropdownMenuContent align="end" className="bg-popover">
                             <DropdownMenuItem onClick={() => handleView(quote)}>View Details</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEdit(quote)}>Edit Quotation</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDuplicate(quote)}>Clone Quotation</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleConvertToInvoice(quote)}>Convert to Invoice</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleDownloadPDF(quote)}>Download PDF</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleSendEmail(quote)}>Send via Email</DropdownMenuItem>

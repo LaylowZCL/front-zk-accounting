@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getSettings } from '@/lib/business-api';
+import { normalizeCurrency } from '@/lib/currency';
 
 export interface CompanySettings {
   company_name?: string;
@@ -29,13 +30,13 @@ export const useCompanySettings = () => {
         
         // Mapear os campos da API para o formato esperado
         const mappedSettings: CompanySettings = {
-          company_name: companyData.name,
+          company_name: (companyData as any).company_name || companyData.name,
           tax_id: companyData.tax_number,
           email: companyData.email,
           phone: companyData.phone,
           address: companyData.address,
           website: (companyData as any).website,
-          currency: (companyData as any).currency,
+          currency: normalizeCurrency((companyData as any).currency),
           timezone: (companyData as any).timezone,
           language: (companyData as any).language,
           logo_url: (companyData as any).logo_url,
@@ -56,3 +57,5 @@ export const useCompanySettings = () => {
 
   return { settings, loading, error };
 };
+
+
