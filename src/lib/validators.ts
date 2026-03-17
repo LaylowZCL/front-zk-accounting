@@ -13,6 +13,7 @@ export const registerSchema = z.object({
     .min(8, 'A senha deve ter pelo menos 8 caracteres')
     .regex(/[A-Za-z]/, 'A senha deve conter letras')
     .regex(/[0-9]/, 'A senha deve conter números'),
+  plan_id: z.coerce.number().int().min(1, 'Selecione um pacote'),
 });
 
 export const passwordChangeSchema = z

@@ -110,6 +110,7 @@ const Payments = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>Payment ID</TableHead>
                   <TableHead>Invoice</TableHead>
                   <TableHead>Client</TableHead>
@@ -122,10 +123,11 @@ const Payments = () => {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading payments...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading payments...</TableCell></TableRow>
                 ) : (
-                  filteredPayments.map((payment) => (
+                  filteredPayments.map((payment, index) => (
                     <TableRow key={payment.id}>
+                      <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                       <TableCell className="font-medium">{payment.id}</TableCell>
                       <TableCell><Badge variant="outline">{payment.invoice}</Badge></TableCell>
                       <TableCell>{payment.client}</TableCell>

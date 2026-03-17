@@ -94,6 +94,7 @@ const Sent = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Reference</TableHead>
                   <TableHead>Recipient</TableHead>
@@ -105,10 +106,11 @@ const Sent = () => {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading sent items...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading sent items...</TableCell></TableRow>
                 ) : (
-                  filteredItems.map((item) => (
+                  filteredItems.map((item, index) => (
                     <TableRow key={item.id}>
+                      <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                       <TableCell><Badge variant="outline">{item.type}</Badge></TableCell>
                       <TableCell className="font-medium">{item.reference}</TableCell>
                       <TableCell>{item.recipient}</TableCell>

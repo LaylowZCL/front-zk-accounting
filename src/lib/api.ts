@@ -1,10 +1,14 @@
 const API_BASE_URL_ENV = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, '');
+const AUTH_TOKEN_MODE = (import.meta.env.VITE_AUTH_TOKEN_MODE as string | undefined) ?? 'local';
+const USE_COOKIE_AUTH = AUTH_TOKEN_MODE === 'cookie';
+const IS_DEV = import.meta.env.DEV;
 
 export type ApiUser = {
   id: number;
   name: string;
   email: string;
   account_id: number | null;
+  status?: 'active' | 'invited' | 'blocked' | 'inactive';
   is_platform_admin?: boolean;
   roles?: string[];
   permissions?: string[];
@@ -21,6 +25,21 @@ export type Plan = {
   trial_days: number;
   is_active: boolean;
   features: string[] | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type PendingInvitation = {
+  id: number;
+  account_id: number;
+  email: string;
+  role: string;
+  status: string;
+  invited_at?: string | null;
+  account?: {
+    id: number;
+    name: string;
+    status?: string;
+  } | null;
 };
 
 export type ApiSession = {
@@ -69,7 +88,7 @@ type SecurityOverviewResponse = {
 };
 
 export type AuthLoginResponse =
-  | { ok: true; token: string; user: ApiUser }
+  | { ok: true; data: { token: string; user: ApiUser } }
   | { ok: false; requires_two_factor: true; message?: string };
 
 type ValidationErrors = Record<string, string[]>;
@@ -114,13 +133,19 @@ function getDeviceId() {
   return btoa(`${navigator.userAgent}|${navigator.platform}|${navigator.language}`);
 }
 
+export function isCookieAuth() {
+  return USE_COOKIE_AUTH;
+}
+
 export function getToken() {
+  if (USE_COOKIE_AUTH) return null;
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token || token === 'undefined' || token === 'null') return null;
   return token;
 }
 
 export function setToken(token: string) {
+  if (USE_COOKIE_AUTH) return;
   localStorage.setItem(TOKEN_KEY, token);
 }
 
@@ -209,6 +234,10 @@ function getApiBaseCandidates() {
     return normalizeAndDedupe(envCandidates);
   }
 
+  if (!IS_DEV) {
+    return ['/api/v1'];
+  }
+
   const isLocalHost =
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1' ||
@@ -275,7 +304,11 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
 
   for (const baseUrl of candidates) {
     try {
-      const response = await fetch(`${baseUrl}${path}`, { ...init, headers });
+      const response = await fetch(`${baseUrl}${path}`, {
+        ...init,
+        headers,
+        credentials: USE_COOKIE_AUTH ? 'include' : init.credentials,
+      });
       const { data, rawText } = await parseResponsePayload(response);
 
       if (!response.ok) {
@@ -311,6 +344,62 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   throw lastError instanceof Error ? lastError : new Error(`Request failed for ${path}`);
 }
 
+export async function apiRequestBlob(path: string, init: RequestInit = {}): Promise<{ blob: Blob; filename?: string }> {
+  const token = getToken();
+  const headers = new Headers(init.headers ?? {});
+  if (!headers.has('Accept')) headers.set('Accept', 'application/pdf');
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  headers.set('X-Session-Id', getSessionId());
+  headers.set('X-Device-Id', getDeviceId());
+  headers.set('X-Device-Name', `${navigator.platform} - ${navigator.language}`);
+
+  const candidates = resolvedApiBase ? [resolvedApiBase] : getApiBaseCandidates();
+  let lastError: unknown;
+
+  for (const baseUrl of candidates) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        ...init,
+        headers,
+        credentials: USE_COOKIE_AUTH ? 'include' : init.credentials,
+      });
+      if (!response.ok) {
+        const { data, rawText } = await parseResponsePayload(response);
+        if (response.status === 401) {
+          clearAuth();
+          unauthorizedHandler?.();
+        }
+        const apiError = new ApiError(
+          buildErrorMessage(response.status, path, data, rawText),
+          response.status,
+          typeof (data as Record<string, unknown>)?.code === 'string' ? (data as Record<string, string>).code : undefined,
+          extractValidationErrors(data),
+          `${baseUrl}${path}`
+        );
+        lastError = apiError;
+        if (response.status !== 404 && response.status !== 405) {
+          throw apiError;
+        }
+        continue;
+      }
+
+      resolvedApiBase = baseUrl;
+      const blob = await response.blob();
+      const disposition = response.headers.get('Content-Disposition') || response.headers.get('content-disposition');
+      let filename: string | undefined;
+      if (disposition) {
+        const match = disposition.match(/filename\\*=UTF-8''([^;]+)|filename=\"?([^;\"]+)\"?/i);
+        filename = decodeURIComponent(match?.[1] || match?.[2] || '').trim() || undefined;
+      }
+      return { blob, filename };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`Request failed for ${path}`);
+}
+
 export async function apiRequestFirst<T>(paths: string[], init: RequestInit = {}): Promise<T> {
   let lastError: unknown;
   for (const path of paths) {
@@ -332,14 +421,16 @@ export async function authRegister(payload: {
   email: string;
   password: string;
   company_name: string;
+  billing_email?: string;
+  plan_id?: number;
 }) {
-  return apiRequest<{ ok: boolean; token: string; user: ApiUser }>('/auth/register', {
+  return apiRequest<{ ok: true; data: { token: string; user: ApiUser } }>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
-export async function authLogin(payload: { email: string; password: string; two_factor_code?: string; recovery_code?: string }) {
+export async function authLogin(payload: { email: string; password: string; device_name?: string; two_factor_code?: string; recovery_code?: string }) {
   return apiRequest<AuthLoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -347,8 +438,19 @@ export async function authLogin(payload: { email: string; password: string; two_
 }
 
 export async function authMe() {
-  const response = await apiRequestFirst<{ ok?: boolean; data?: ApiUser; user?: ApiUser }>(['/auth/me', '/me', '/user']);
-  return response.data ?? response.user ?? (response as unknown as ApiUser);
+  const response = await apiRequestFirst<{ ok?: boolean; data?: ApiUser }>(['/auth/me', '/me', '/user']);
+  return response.data ?? (response as unknown as ApiUser);
+}
+
+export async function getPendingInvitation() {
+  const response = await apiRequest<{ ok: true; data: PendingInvitation | null }>('/auth/invitations/pending');
+  return response.data;
+}
+
+export async function acceptInvitation() {
+  return apiRequest<{ ok: true; data: { accepted: boolean } }>('/auth/invitations/accept', {
+    method: 'POST',
+  });
 }
 
 export async function authLogout() {
@@ -470,7 +572,3 @@ export async function startCheckout(payload: { plan_id: number; payment_type: 'R
     body: JSON.stringify(payload),
   });
 }
-
-
-
-

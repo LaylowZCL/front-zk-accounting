@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Zap,
   Building2,
@@ -27,12 +28,30 @@ const steps = [
   { id: 4, title: 'Branding', icon: Upload },
 ];
 
+const defaultIndustries = [
+  'Design',
+  'Saude',
+  'Servicos',
+  'Mineracao',
+  'Tecnologia',
+  'Educacao',
+  'Agricultura',
+  'Construcao',
+  'Consultoria',
+  'Comercio',
+  'Transporte',
+  'Hotelaria',
+  'Financas',
+  'Marketing',
+  'Outros',
+];
+
 const CompanySetup = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    companyName: '',
+    name: '',
     industry: '',
     website: '',
     email: '',
@@ -46,7 +65,78 @@ const CompanySetup = () => {
     logoDataUrl: '',
     currency: 'MT',
   });
+  const [countries, setCountries] = useState<string[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<string[]>(defaultIndustries);
+  const [isLoadingCountries, setIsLoadingCountries] = useState(false);
+  const [isLoadingCities, setIsLoadingCities] = useState(false);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const industryApi = (import.meta.env.VITE_INDUSTRIES_API as string | undefined) ?? '';
+    if (!industryApi) return;
+
+    const loadIndustries = async () => {
+      try {
+        const response = await fetch(industryApi);
+        const payload = await response.json();
+        const list = Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload) ? payload : []);
+        const normalized = list.map((item: { name?: string } | string) => (typeof item === 'string' ? item : item?.name)).filter(Boolean) as string[];
+        if (normalized.length > 0) setIndustries(normalized);
+      } catch {
+        // keep default list
+      }
+    };
+
+    loadIndustries();
+  }, []);
+
+  useEffect(() => {
+    const loadCountries = async () => {
+      setIsLoadingCountries(true);
+      try {
+        const response = await fetch('https://countriesnow.space/api/v0.1/countries/iso');
+        const payload = await response.json();
+        const list = Array.isArray(payload?.data)
+          ? payload.data.map((item: { name?: string }) => item?.name).filter(Boolean)
+          : [];
+        setCountries(list);
+      } catch {
+        setCountries([]);
+      } finally {
+        setIsLoadingCountries(false);
+      }
+    };
+
+    loadCountries();
+  }, []);
+
+  useEffect(() => {
+    const loadCities = async () => {
+      if (!formData.country) {
+        setCities([]);
+        return;
+      }
+
+      setIsLoadingCities(true);
+      try {
+        const response = await fetch('https://countriesnow.space/api/v0.1/countries/cities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ country: formData.country }),
+        });
+        const payload = await response.json();
+        const list = Array.isArray(payload?.data) ? payload.data : [];
+        setCities(list);
+      } catch {
+        setCities([]);
+      } finally {
+        setIsLoadingCities(false);
+      }
+    };
+
+    loadCities();
+  }, [formData.country]);
 
   const handleNext = () => {
     if (currentStep < 4) setCurrentStep(currentStep + 1);
@@ -78,16 +168,16 @@ const CompanySetup = () => {
   };
 
   const handleComplete = async () => {
-    if (!formData.companyName || !formData.email) {
+    if (!formData.name || !formData.email) {
       toast.error('Company name and business email are required.');
-      setCurrentStep(formData.companyName ? 2 : 1);
+      setCurrentStep(formData.name ? 2 : 1);
       return;
     }
 
     setIsSubmitting(true);
     try {
       await completeCompanySetup({
-        company_name: formData.companyName,
+        name: formData.name,
         industry: formData.industry,
         website: formData.website,
         email: formData.email,
@@ -117,7 +207,7 @@ const CompanySetup = () => {
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center">
               <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-display font-bold text-xl">BillFlow</span>
+            <span className="font-display font-bold text-xl">ZK Contabilidade</span>
           </Link>
         </div>
       </header>
@@ -180,20 +270,26 @@ const CompanySetup = () => {
                     id="companyName"
                     placeholder="Acme Corporation"
                     className="pl-10 h-12"
-                    value={formData.companyName}
-                    onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="industry">Industry</Label>
-                <Input
-                  id="industry"
-                  placeholder="e.g., Technology, Consulting, Retail"
-                  className="h-12"
+                <Select
                   value={formData.industry}
-                  onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-                />
+                  onValueChange={(value) => setFormData({ ...formData, industry: value })}
+                >
+                  <SelectTrigger id="industry" className="h-12">
+                    <SelectValue placeholder="Select industry" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {industries.map((industry) => (
+                      <SelectItem key={industry} value={industry}>{industry}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="website">Website</Label>
@@ -257,24 +353,36 @@ const CompanySetup = () => {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
-                  <Input
-                    id="city"
-                    placeholder="City"
-                    className="h-12"
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  />
+                  <Label htmlFor="country">Country</Label>
+                  <Select
+                    value={formData.country}
+                    onValueChange={(value) => setFormData({ ...formData, country: value, city: '' })}
+                  >
+                    <SelectTrigger id="country" className="h-12" disabled={isLoadingCountries}>
+                      <SelectValue placeholder={isLoadingCountries ? 'Loading countries...' : 'Select country'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {countries.map((country) => (
+                        <SelectItem key={country} value={country}>{country}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="country">Country</Label>
-                  <Input
-                    id="country"
-                    placeholder="Country"
-                    className="h-12"
-                    value={formData.country}
-                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  />
+                  <Label htmlFor="city">City</Label>
+                  <Select
+                    value={formData.city}
+                    onValueChange={(value) => setFormData({ ...formData, city: value })}
+                  >
+                    <SelectTrigger id="city" className="h-12" disabled={!formData.country || isLoadingCities}>
+                      <SelectValue placeholder={!formData.country ? 'Select country first' : (isLoadingCities ? 'Loading cities...' : 'Select city')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cities.map((city) => (
+                        <SelectItem key={city} value={city}>{city}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>

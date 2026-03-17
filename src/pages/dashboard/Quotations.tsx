@@ -199,6 +199,7 @@ const Quotations = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>Quotation</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Date</TableHead>
@@ -210,10 +211,11 @@ const Quotations = () => {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Loading quotations...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Loading quotations...</TableCell></TableRow>
                 ) : (
-                  filteredQuotations.map((quote) => (
+                  filteredQuotations.map((quote, index) => (
                     <TableRow key={quote.id}>
+                      <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                       <TableCell>
                         <button onClick={() => handleView(quote)} className="flex items-center gap-2 hover:text-primary transition-colors">
                           <FileText className="w-4 h-4 text-muted-foreground" />

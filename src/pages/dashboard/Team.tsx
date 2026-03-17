@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Sidebar from '@/components/dashboard/Sidebar';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -44,12 +45,16 @@ import {
   deleteTeamMember,
   inviteTeamMember,
   listTeamMembers,
+  revokeTeamInvitation,
   resendTeamInvitation,
   updateTeamMember,
 } from '@/lib/business-api';
+import { useAuth } from '@/contexts/AuthContext';
+import { isOwner as isOwnerRole } from '@/lib/roles';
 
 const roleColors: Record<string, 'default' | 'secondary'> = {
   owner: 'default',
+  counter: 'secondary',
   employee: 'secondary',
 };
 
@@ -65,6 +70,9 @@ const DashboardTeam = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'counter' | 'employee'>('employee');
+  const { user } = useAuth();
+  const canManageTeam = useMemo(() => isOwnerRole(user?.roles), [user?.roles]);
 
   const loadTeam = async () => {
     setIsLoading(true);
@@ -90,10 +98,11 @@ const DashboardTeam = () => {
   const handleInvite = async () => {
     if (!inviteEmail) return toast.error('Please enter an email address');
     try {
-      await inviteTeamMember({ email: inviteEmail, role: 'employee' });
+      await inviteTeamMember({ email: inviteEmail, role: inviteRole });
       await loadTeam();
       toast.success(`Invitation sent to ${inviteEmail}`);
       setInviteEmail('');
+      setInviteRole('employee');
       setIsInviteDialogOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to invite member');
@@ -107,6 +116,16 @@ const DashboardTeam = () => {
       toast.success(`Invitation resent to ${member.email}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to resend invite');
+    }
+  };
+
+  const handleRevokeInvite = async (member: TeamMember) => {
+    try {
+      await revokeTeamInvitation(member.id);
+      await loadTeam();
+      toast.success(`Invitation revoked for ${member.email}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to revoke invite');
     }
   };
 
@@ -156,12 +175,12 @@ const DashboardTeam = () => {
               <p className="text-2xl font-bold">{teamMembers.filter((m) => m.role === 'owner').length}</p>
             </div>
             <div className="bg-card rounded-xl border border-border p-4">
-              <p className="text-sm text-muted-foreground">Employees</p>
-              <p className="text-2xl font-bold">{teamMembers.filter((m) => m.role === 'employee').length}</p>
+              <p className="text-sm text-muted-foreground">Counters</p>
+              <p className="text-2xl font-bold">{teamMembers.filter((m) => m.role === 'counter').length}</p>
             </div>
             <div className="bg-card rounded-xl border border-border p-4">
-              <p className="text-sm text-muted-foreground">Pending Invites</p>
-              <p className="text-2xl font-bold">{teamMembers.filter((m) => m.status === 'pending').length}</p>
+              <p className="text-sm text-muted-foreground">Employees</p>
+              <p className="text-2xl font-bold">{teamMembers.filter((m) => m.role === 'employee').length}</p>
             </div>
           </div>
 
@@ -175,9 +194,9 @@ const DashboardTeam = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Button onClick={() => setIsInviteDialogOpen(true)}>
+            <Button onClick={() => setIsInviteDialogOpen(true)} disabled={!canManageTeam}>
               <Plus className="w-4 h-4 mr-2" />
-              Invite Employee
+              Invite Member
             </Button>
           </div>
 
@@ -185,6 +204,7 @@ const DashboardTeam = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>Member</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
@@ -196,11 +216,12 @@ const DashboardTeam = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Loading team...</TableCell>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">Loading team...</TableCell>
                   </TableRow>
                 ) : (
-                  filteredMembers.map((member) => (
+                  filteredMembers.map((member, index) => (
                     <TableRow key={member.id}>
+                      <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-primary-foreground font-semibold text-sm">
@@ -223,14 +244,19 @@ const DashboardTeam = () => {
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon"><MoreHorizontal className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" disabled={!canManageTeam}><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {member.role !== 'owner' && (
+                            {member.role !== 'owner' && canManageTeam && (
                               <>
                                 {member.status === 'pending' && (
                                   <DropdownMenuItem onClick={() => handleResendInvite(member)}>
                                     <Send className="w-4 h-4 mr-2" />Resend Invite
+                                  </DropdownMenuItem>
+                                )}
+                                {member.status === 'pending' && (
+                                  <DropdownMenuItem className="text-destructive" onClick={() => handleRevokeInvite(member)}>
+                                    <Trash2 className="w-4 h-4 mr-2" />Revoke Invite
                                   </DropdownMenuItem>
                                 )}
                                 {member.status === 'active' ? (
@@ -267,27 +293,39 @@ const DashboardTeam = () => {
       <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Invite Employee</DialogTitle>
-            <DialogDescription>
-              Send an invitation to join your team.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="employee@yourcompany.com"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-              />
-            </div>
+          <DialogTitle>Invite Member</DialogTitle>
+          <DialogDescription>
+            Send an invitation to join your team.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email Address</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="employee@yourcompany.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+            />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleInvite}><Mail className="w-4 h-4 mr-2" />Send Invitation</Button>
-          </DialogFooter>
+          <div className="space-y-2">
+            <Label htmlFor="role">Role</Label>
+            <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as 'counter' | 'employee')}>
+              <SelectTrigger id="role">
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="counter">Counter</SelectItem>
+                <SelectItem value="employee">Employee</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleInvite} disabled={!canManageTeam}><Mail className="w-4 h-4 mr-2" />Send Invitation</Button>
+        </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

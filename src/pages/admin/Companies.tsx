@@ -11,8 +11,10 @@ import { toast } from 'sonner';
 import { AdminCompany, listAdminCompanies, updateAdminCompany } from '@/lib/admin-api';
 
 const planColors: Record<string, string> = {
+  basic: 'bg-slate-500/10 text-slate-600 border-slate-500/20',
   starter: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
   professional: 'bg-primary/10 text-primary border-primary/20',
+  premium: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20',
   enterprise: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
 };
 
@@ -123,6 +125,7 @@ const Companies = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>Plan</TableHead>
                   <TableHead>Status</TableHead>
@@ -134,12 +137,13 @@ const Companies = () => {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading companies...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading companies...</TableCell></TableRow>
                 ) : filteredCompanies.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No companies found.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No companies found.</TableCell></TableRow>
                 ) : (
-                  filteredCompanies.map((company) => (
+                  filteredCompanies.map((company, index) => (
                     <TableRow key={company.id}>
+                      <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                       <TableCell>
                         <div>
                           <p className="font-medium">{company.name}</p>

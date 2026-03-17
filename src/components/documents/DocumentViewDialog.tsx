@@ -7,11 +7,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Printer, Download, Mail, Building2, Phone, Mail as MailIcon, Globe, MapPin } from 'lucide-react';
+import { Printer, Download, Mail } from 'lucide-react';
 import { Invoice, Quotation, Receipt } from '@/types/documents';
 import { toast } from 'sonner';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { formatMoney } from '@/lib/currency';
+import { downloadDocumentPdf } from '@/lib/business-api';
 
 interface DocumentViewDialogProps {
   open: boolean;
@@ -31,14 +32,64 @@ const DocumentViewDialog = ({ open, onOpenChange, document, type }: DocumentView
   const hasItems = !isReceipt && 'items' in document;
 
   const handlePrint = () => {
-    const printContent = printRef.current;
-    if (!printContent) return;
-
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       toast.error('Please allow popups to print');
       return;
     }
+
+    const logoHtml = companySettings.logo_url
+      ? `<img src="${companySettings.logo_url}" style="max-height:48px; margin-bottom:6px;" alt="Logo" />`
+      : `<div style="font-weight:700; color:#1f2937; margin-bottom:6px;">${companySettings.name || 'Sua Empresa'}</div>`;
+
+    const itemsHtml = hasItems && 'items' in document
+      ? document.items.map((item) => `
+          <tr>
+            <td>${item.description}</td>
+            <td class="right">${item.quantity}</td>
+            <td class="right">${formatMoney(item.unitPrice, currency)}</td>
+            <td class="right">${item.taxRate}%</td>
+            <td class="right">${formatMoney(item.total, currency)}</td>
+          </tr>
+        `).join('')
+      : '';
+
+    const totalsHtml = hasItems
+      ? `
+        <table class="totals">
+          <tr>
+            <td class="right" style="width:80%"><strong>Subtotal</strong></td>
+            <td class="right">${formatMoney((document as Invoice | Quotation).subtotal, currency)}</td>
+          </tr>
+          <tr>
+            <td class="right"><strong>Tax</strong></td>
+            <td class="right">${formatMoney((document as Invoice | Quotation).taxTotal, currency)}</td>
+          </tr>
+          <tr>
+            <td class="right"><strong>Total</strong></td>
+            <td class="right">${formatMoney(document.amount, currency)}</td>
+          </tr>
+        </table>
+      `
+      : '';
+
+    const receiptHtml = isReceipt && 'paymentMethod' in document
+      ? `
+        <div class="card">
+          <div class="row">
+            <div>
+              <div class="label">Invoice Reference</div>
+              <div>${document.invoice}</div>
+            </div>
+            <div>
+              <div class="label">Payment Method</div>
+              <div>${document.paymentMethod}</div>
+            </div>
+          </div>
+          <div class="amount">${formatMoney(document.amount, currency)}</div>
+        </div>
+      `
+      : '';
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -46,58 +97,100 @@ const DocumentViewDialog = ({ open, onOpenChange, document, type }: DocumentView
         <head>
           <title>${document.id}</title>
           <style>
-            body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
-            .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
-            .company { font-size: 24px; font-weight: bold; color: #4f46e5; margin-bottom: 8px; }
-            .company-details { font-size: 14px; color: #6b7280; line-height: 1.5; }
-            .document-info { text-align: right; }
-            .document-id { font-size: 20px; font-weight: bold; }
-            .client-info { margin-bottom: 30px; padding: 20px; background: #f9fafb; border-radius: 8px; }
-            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-            .items-table th, .items-table td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-            .items-table th { background: #f9fafb; font-weight: 600; }
-            .totals { text-align: right; }
-            .totals .row { display: flex; justify-content: flex-end; gap: 40px; margin-bottom: 8px; }
-            .totals .total { font-size: 18px; font-weight: bold; border-top: 2px solid #e5e7eb; padding-top: 8px; }
-            .notes { margin-top: 40px; padding: 20px; background: #f9fafb; border-radius: 8px; }
-            .status { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
-            .status-paid, .status-accepted { background: #dcfce7; color: #166534; }
-            .status-pending { background: #fef3c7; color: #92400e; }
-            .status-overdue, .status-declined { background: #fee2e2; color: #991b1b; }
+            :root { --brand: #1f2937; }
+            body { font-family: DejaVu Sans, Arial, sans-serif; color: #1f2937; font-size: 12px; margin: 0; padding: 32px; }
+            .header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:16px; border-bottom:2px solid var(--brand); margin-bottom:16px; }
+            .title { font-size:18px; font-weight:700; margin:0 0 4px; color: var(--brand); }
+            .muted { color:#6b7280; }
+            .right { text-align:right; }
+            .card { border:1px solid #e5e7eb; border-radius:10px; padding:12px; margin-bottom:16px; }
+            .label { color:#6b7280; font-size:11px; }
+            table { width:100%; border-collapse:collapse; }
+            th, td { border-bottom:1px solid #e5e7eb; padding:8px 6px; text-align:left; }
+            th { background:#f9fafb; font-weight:600; }
+            .totals td { border:none; padding:4px 6px; }
+            .status { display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:600; text-transform:capitalize; }
+            .status-paid, .status-accepted { background:#dcfce7; color:#166534; }
+            .status-pending { background:#fef3c7; color:#92400e; }
+            .status-overdue, .status-declined { background:#fee2e2; color:#991b1b; }
+            .row { display:flex; justify-content:space-between; gap:16px; }
+            .amount { text-align:right; font-size:18px; font-weight:700; margin-top:12px; }
             @media print { body { padding: 20px; } }
           </style>
         </head>
         <body>
           <div class="header">
             <div>
-              <div class="company">${companySettings.company_name || 'Sua Empresa'}</div>
-              <div class="company-details">
-                ${companySettings.address ? `<div>${companySettings.address}</div>` : ''}
-                ${companySettings.tax_id ? `<div>NIF: ${companySettings.tax_id}</div>` : ''}
-                <div>${companySettings.email || 'empresa@exemplo.com'}</div>
-                ${companySettings.phone ? `<div>${companySettings.phone}</div>` : ''}
-                ${companySettings.website ? `<div>${companySettings.website}</div>` : ''}
-              </div>
+              ${logoHtml}
+              <div class="title">${type.toUpperCase()}</div>
+              <div class="muted">#${document.id}</div>
             </div>
-            <div class="document-info">
-              <div class="document-id">${document.id}</div>
-              <div>Date: ${document.date}</div>
-              ${'dueDate' in document ? `<div>Due: ${document.dueDate}</div>` : ''}
-              ${'validUntil' in document ? `<div>Valid Until: ${document.validUntil}</div>` : ''}
-              ${'status' in document ? `<div class="status ${getStatusClass(document.status)}">${document.status}</div>` : ''}
+            <div class="right">
+              <div style="font-weight:600;">${companySettings.name || 'Sua Empresa'}</div>
+              ${companySettings.tax_id ? `<div class="muted">NIF: ${companySettings.tax_id}</div>` : ''}
+              ${companySettings.email ? `<div class="muted">${companySettings.email}</div>` : ''}
+              ${companySettings.phone ? `<div class="muted">${companySettings.phone}</div>` : ''}
+              ${companySettings.address ? `<div class="muted">${companySettings.address}</div>` : ''}
             </div>
           </div>
-          ${printContent.innerHTML}
+
+          <div class="card">
+            <div><strong>Client:</strong> ${'client' in document ? document.client : '-'}</div>
+            <div><strong>Date:</strong> ${document.date}</div>
+            ${'dueDate' in document ? `<div><strong>Due:</strong> ${document.dueDate}</div>` : ''}
+            ${'validUntil' in document ? `<div><strong>Valid Until:</strong> ${document.validUntil}</div>` : ''}
+            ${'status' in document ? `<div><strong>Status:</strong> <span class="status ${getStatusClass(document.status)}">${document.status}</span></div>` : ''}
+          </div>
+
+          ${hasItems ? `
+            <table>
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th class="right">Qty</th>
+                  <th class="right">Unit</th>
+                  <th class="right">Tax %</th>
+                  <th class="right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+            ${totalsHtml}
+          ` : ''}
+
+          ${receiptHtml}
+
+          ${'notes' in document && document.notes ? `
+            <div class="card">
+              <strong>Notes:</strong> ${document.notes}
+            </div>
+          ` : ''}
         </body>
       </html>
     `);
     printWindow.document.close();
+    printWindow.focus();
     printWindow.print();
   };
 
-  const handleDownload = () => {
-    toast.success('PDF download started');
-    // In a real app, this would generate a PDF
+  const handleDownload = async () => {
+    try {
+      const doc = document as Invoice | Quotation | Receipt;
+      const documentId = doc.documentId ?? doc.id;
+      const result = await downloadDocumentPdf(documentId);
+      const blobUrl = URL.createObjectURL(result.blob);
+      const link = window.document.createElement('a');
+      link.href = blobUrl;
+      link.download = result.filename || `${doc.id}.pdf`;
+      window.document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to download PDF');
+    }
   };
 
   const handleEmail = () => {
@@ -109,6 +202,12 @@ const DocumentViewDialog = ({ open, onOpenChange, document, type }: DocumentView
     if (status === 'paid' || status === 'accepted') return 'status-paid';
     if (status === 'pending') return 'status-pending';
     return 'status-overdue';
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    if (status === 'paid' || status === 'accepted') return 'bg-success/15 text-success';
+    if (status === 'pending') return 'bg-warning/15 text-warning';
+    return 'bg-destructive/15 text-destructive';
   };
 
   return (
@@ -132,155 +231,126 @@ const DocumentViewDialog = ({ open, onOpenChange, document, type }: DocumentView
           </div>
         </DialogHeader>
 
-        {/* Non-printable Header for UI */}
-        <div className="flex justify-between items-start mb-8 print:hidden">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <Building2 className="w-6 h-6 text-primary" />
-              <h2 className="text-2xl font-bold text-primary">
-                {companySettings.company_name || 'Sua Empresa'}
-              </h2>
+        <div ref={printRef} className="border border-border rounded-2xl p-6 space-y-6">
+          <div className="flex justify-between items-start border-b border-border/70 pb-4">
+            <div>
+              {companySettings.logo_url ? (
+                <img src={companySettings.logo_url} alt="Logo" className="h-12 mb-2" />
+              ) : (
+                <p className="font-semibold text-base text-primary mb-2">{companySettings.name || 'Sua Empresa'}</p>
+              )}
+              <p className="text-lg font-bold text-primary uppercase">{type}</p>
+              <p className="text-sm text-muted-foreground">#{document.id}</p>
             </div>
-            
-            {/* Company Details */}
-            <div className="space-y-1 text-sm text-muted-foreground">
-              {companySettings.address && (
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4" />
-                  <span>{companySettings.address}</span>
-                </div>
-              )}
-              
-              {companySettings.tax_id && (
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4" />
-                  <span>NIF: {companySettings.tax_id}</span>
-                </div>
-              )}
-              
-              <div className="flex items-center gap-2">
-                <MailIcon className="w-4 h-4" />
-                <span>{companySettings.email || 'empresa@exemplo.com'}</span>
+            <div className="text-right text-sm">
+              <p className="font-semibold">{companySettings.name || 'Sua Empresa'}</p>
+              {companySettings.tax_id && <p className="text-muted-foreground">NIF: {companySettings.tax_id}</p>}
+              {companySettings.email && <p className="text-muted-foreground">{companySettings.email}</p>}
+              {companySettings.phone && <p className="text-muted-foreground">{companySettings.phone}</p>}
+              {companySettings.address && <p className="text-muted-foreground">{companySettings.address}</p>}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/70 p-4 text-sm">
+            <div className="flex flex-wrap gap-4 justify-between">
+              <div>
+                <p className="text-muted-foreground">Client</p>
+                <p className="font-medium">{'client' in document ? document.client : '-'}</p>
               </div>
-              
-              {companySettings.phone && (
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4" />
-                  <span>{companySettings.phone}</span>
+              <div>
+                <p className="text-muted-foreground">Date</p>
+                <p className="font-medium">{document.date}</p>
+              </div>
+              {'dueDate' in document && (
+                <div>
+                  <p className="text-muted-foreground">Due</p>
+                  <p className="font-medium">{document.dueDate}</p>
                 </div>
               )}
-              
-              {companySettings.website && (
-                <div className="flex items-center gap-2">
-                  <Globe className="w-4 h-4" />
-                  <span>{companySettings.website}</span>
+              {'validUntil' in document && (
+                <div>
+                  <p className="text-muted-foreground">Valid Until</p>
+                  <p className="font-medium">{document.validUntil}</p>
+                </div>
+              )}
+              {'status' in document && (
+                <div>
+                  <p className="text-muted-foreground">Status</p>
+                  <Badge className={`mt-1 capitalize ${getStatusBadgeClass(document.status)}`}>
+                    {document.status}
+                  </Badge>
                 </div>
               )}
             </div>
           </div>
-          
-          <div className="text-right">
-            <p className="text-xl font-bold">{document.id}</p>
-            <p className="text-sm text-muted-foreground">
-              Date: {document.date}
-            </p>
-            {'dueDate' in document && (
-              <p className="text-sm text-muted-foreground">
-                Due: {document.dueDate}
-              </p>
-            )}
-            {'validUntil' in document && (
-              <p className="text-sm text-muted-foreground">
-                Valid Until: {document.validUntil}
-              </p>
-            )}
-            {'status' in document && (
-              <Badge className={`mt-2 capitalize ${getStatusClass(document.status)}`}>
-                {document.status}
-              </Badge>
-            )}
-          </div>
-        </div>
 
-        {/* Printable Content */}
-        <div ref={printRef} className="py-6">
-          {/* Client Info */}
-          <div className="bg-muted/50 rounded-lg p-4 mb-6">
-            <h3 className="font-semibold mb-2">Bill To:</h3>
-            <p className="font-medium">{document.client}</p>
-          </div>
-
-          {/* Line Items (for Invoice/Quotation) */}
           {hasItems && 'items' in document && (
-            <div className="mb-6">
-              <table className="w-full">
+            <div>
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-3 font-semibold">Description</th>
-                    <th className="text-right py-3 font-semibold">Qty</th>
-                    <th className="text-right py-3 font-semibold">Price</th>
-                    <th className="text-right py-3 font-semibold">Tax</th>
-                    <th className="text-right py-3 font-semibold">Total</th>
+                    <th className="text-left py-2">Description</th>
+                    <th className="text-right py-2">Qty</th>
+                    <th className="text-right py-2">Unit</th>
+                    <th className="text-right py-2">Tax %</th>
+                    <th className="text-right py-2">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {document.items.map((item) => (
                     <tr key={item.id} className="border-b">
-                      <td className="py-3">{item.description}</td>
-                      <td className="text-right py-3">{item.quantity}</td>
-                      <td className="text-right py-3">$</td>
-                      <td className="text-right py-3">{item.taxRate}%</td>
-                      <td className="text-right py-3 font-medium">$</td>
+                      <td className="py-2">{item.description}</td>
+                      <td className="text-right py-2">{item.quantity}</td>
+                      <td className="text-right py-2">{formatMoney(item.unitPrice, currency)}</td>
+                      <td className="text-right py-2">{item.taxRate}%</td>
+                      <td className="text-right py-2 font-medium">{formatMoney(item.total, currency)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
 
-              {/* Totals */}
               <div className="flex justify-end mt-4">
-                <div className="w-64 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span>$</span>
+                <div className="w-64 space-y-2 text-sm">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Subtotal</span>
+                    <span>{formatMoney(document.subtotal, currency)}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Tax</span>
-                    <span>$</span>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Tax</span>
+                    <span>{formatMoney(document.taxTotal, currency)}</span>
                   </div>
-                  <div className="flex justify-between font-bold text-lg border-t pt-2">
+                  <div className="flex justify-between font-bold text-base border-t pt-2">
                     <span>Total</span>
-                    <span>$</span>
+                    <span>{formatMoney(document.amount, currency)}</span>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Receipt specific info */}
           {isReceipt && 'paymentMethod' in document && (
-            <div className="space-y-4 mb-6">
+            <div className="rounded-xl border border-border/70 p-4 space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Invoice Reference</p>
+                  <p className="text-muted-foreground">Invoice Reference</p>
                   <p className="font-medium">{document.invoice}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Payment Method</p>
+                  <p className="text-muted-foreground">Payment Method</p>
                   <p className="font-medium">{document.paymentMethod}</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm text-muted-foreground">Amount Paid</p>
-                <p className="text-2xl font-bold text-primary">$</p>
+                <p className="text-muted-foreground">Amount Paid</p>
+                <p className="text-lg font-bold text-primary">{formatMoney(document.amount, currency)}</p>
               </div>
             </div>
           )}
 
-          {/* Notes */}
           {'notes' in document && document.notes && (
-            <div className="bg-muted/50 rounded-lg p-4">
-              <h3 className="font-semibold mb-2">Notes:</h3>
-              <p className="text-sm">{document.notes}</p>
+            <div className="rounded-xl border border-border/70 p-4">
+              <h3 className="font-semibold mb-2">Notes</h3>
+              <p className="text-sm text-muted-foreground">{document.notes}</p>
             </div>
           )}
         </div>
@@ -290,4 +360,3 @@ const DocumentViewDialog = ({ open, onOpenChange, document, type }: DocumentView
 };
 
 export default DocumentViewDialog;
-

@@ -1,15 +1,17 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Zap, Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { ApiError, authLogin, authRegister } from '@/lib/api';
+import { ApiError, authLogin, authRegister, fetchPlans, type Plan } from '@/lib/api';
 import { LoginFormValues, RegisterFormValues, loginSchema, registerSchema } from '@/lib/validators';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useI18n } from '@/lib/i18n';
 
 interface AuthProps {
   mode: 'login' | 'register';
@@ -18,11 +20,15 @@ interface AuthProps {
 const Auth = ({ mode }: AuthProps) => {
   const navigate = useNavigate();
   const { setSession } = useAuth();
+  const { language } = useI18n();
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [twoFactorRequired, setTwoFactorRequired] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
+  const [searchParams] = useSearchParams();
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [isLoadingPlans, setIsLoadingPlans] = useState(false);
 
   const isLogin = mode === 'login';
 
@@ -34,9 +40,36 @@ const Auth = ({ mode }: AuthProps) => {
 
   const registerForm = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { name: '', email: '', password: '' },
+    defaultValues: { name: '', email: '', password: '', plan_id: 0 },
     mode: 'onBlur',
   });
+
+  const selectedPlanId = registerForm.watch('plan_id');
+
+  useEffect(() => {
+    if (isLogin) return;
+    setIsLoadingPlans(true);
+    fetchPlans()
+      .then((apiPlans) => {
+        const activePlans = apiPlans.filter((p) => p.is_active);
+        setPlans(activePlans);
+        const queryPlan = Number(searchParams.get('plan'));
+        const queryMatch = activePlans.find((p) => p.id === queryPlan);
+        const popular = activePlans.find((p) => Boolean((p.metadata as { is_popular?: boolean } | null)?.is_popular))
+          || activePlans.find((p) => p.code === 'professional')
+          || activePlans[0];
+        const chosen = queryMatch?.id ?? popular?.id;
+        if (chosen) {
+          registerForm.setValue('plan_id', chosen, { shouldValidate: true });
+        }
+      })
+      .catch(() => {
+        setPlans([]);
+      })
+      .finally(() => {
+        setIsLoadingPlans(false);
+      });
+  }, [isLogin, searchParams, registerForm]);
 
   const activeForm = useMemo(() => (isLogin ? loginForm : registerForm), [isLogin, loginForm, registerForm]);
 
@@ -46,7 +79,7 @@ const Auth = ({ mode }: AuthProps) => {
     Object.entries(errors).forEach(([field, messages]) => {
       const firstMessage = messages?.[0];
       if (!firstMessage) return;
-      const mappedField = field === 'name' || field === 'email' || field === 'password' ? field : undefined;
+      const mappedField = field === 'name' || field === 'email' || field === 'password' || field === 'plan_id' ? field : undefined;
       if (mappedField) {
         activeForm.setError(mappedField as 'name' | 'email' | 'password', { message: firstMessage });
       }
@@ -71,12 +104,12 @@ const Auth = ({ mode }: AuthProps) => {
           return;
         }
 
-        setSession(response.token, response.user);
+        setSession(response.data.token, response.data.user);
         toast.success('Login efetuado com sucesso');
         setTwoFactorRequired(false);
         setTwoFactorCode('');
         setRecoveryCode('');
-        navigate(response.user.is_platform_admin ? '/admin/dashboard' : '/dashboard');
+        navigate(response.data.user.is_platform_admin ? '/admin/dashboard' : '/dashboard');
       } else {
         const payload = values as RegisterFormValues;
         const response = await authRegister({
@@ -84,10 +117,11 @@ const Auth = ({ mode }: AuthProps) => {
           email: payload.email,
           password: payload.password,
           company_name: `${payload.name.split(' ')[0] || 'My'} Company`,
+          plan_id: Number(payload.plan_id),
         });
-        setSession(response.token, response.user);
+        setSession(response.data.token, response.data.user);
         toast.success('Conta criada com sucesso');
-        navigate(response.user.is_platform_admin ? '/admin/dashboard' : '/dashboard');
+        navigate(response.data.user.is_platform_admin ? '/admin/dashboard' : '/dashboard');
       }
     } catch (error) {
       if (error instanceof ApiError) {
@@ -96,10 +130,10 @@ const Auth = ({ mode }: AuthProps) => {
           setTwoFactorRequired(true);
           toast.warning(error.message || 'Two-factor code required');
         } else {
-          toast.error(error.message || 'Erro na autenticação');
+          toast.error(error.message || 'Erro na autentica  o');
         }
       } else {
-        toast.error('Erro na autenticação');
+        toast.error('Erro na autentica  o');
       }
     } finally {
       setIsSubmitting(false);
@@ -116,7 +150,7 @@ const Auth = ({ mode }: AuthProps) => {
             <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 backdrop-blur-sm flex items-center justify-center">
               <Zap className="w-6 h-6 text-primary-foreground" />
             </div>
-            <span className="font-display font-bold text-2xl text-primary-foreground">BillFlow</span>
+            <span className="font-display font-bold text-2xl text-primary-foreground">ZK Contabilidade</span>
           </Link>
 
           <div className="space-y-6">
@@ -126,7 +160,7 @@ const Auth = ({ mode }: AuthProps) => {
             </p>
           </div>
 
-          <p className="text-sm text-primary-foreground/60">© {new Date().getFullYear()} BillFlow. All rights reserved.</p>
+          <p className="text-sm text-primary-foreground/60">  {new Date().getFullYear()} ZK Contabilidade. All rights reserved.</p>
         </div>
       </div>
 
@@ -137,29 +171,33 @@ const Auth = ({ mode }: AuthProps) => {
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center">
                 <Zap className="w-6 h-6 text-primary-foreground" />
               </div>
-              <span className="font-display font-bold text-2xl">BillFlow</span>
+              <span className="font-display font-bold text-2xl">ZK Contabilidade</span>
             </Link>
           </div>
 
           <div className="text-center lg:text-left">
-            <h2 className="font-display text-3xl font-bold mb-2">{isLogin ? 'Welcome back' : 'Create an account'}</h2>
+            <h2 className="font-display text-3xl font-bold mb-2">
+              {isLogin
+                ? (language === 'pt-PT' ? 'Bem-vindo de volta' : 'Welcome back')
+                : (language === 'pt-PT' ? 'Criar conta' : 'Create an account')}
+            </h2>
             <p className="text-muted-foreground">
               {isLogin
-                ? 'Enter your credentials to access your account'
-                : 'Start your 14-day free trial, no credit card required'}
+                ? (language === 'pt-PT' ? 'Insira as credenciais para aceder Ã  conta' : 'Enter your credentials to access your account')
+                : (language === 'pt-PT' ? 'Inicie o teste gratuito de 7 dias, sem cartao' : 'Start your 7-day free trial, no credit card required')}
             </p>
           </div>
 
           <form onSubmit={activeForm.handleSubmit(onSubmit)} className="space-y-5" noValidate>
             {!isLogin && (
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name">{language === 'pt-PT' ? 'Nome completo' : 'Full name'}</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="name"
                     type="text"
-                    placeholder="John Doe"
+                    placeholder="********"
                     className={`pl-10 h-12 ${registerForm.formState.errors.name ? 'border-destructive' : ''}`}
                     {...registerForm.register('name')}
                   />
@@ -171,7 +209,7 @@ const Auth = ({ mode }: AuthProps) => {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="email">{language === 'pt-PT' ? 'Email' : 'Email address'}</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
@@ -189,14 +227,14 @@ const Auth = ({ mode }: AuthProps) => {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{language === 'pt-PT' ? 'Palavra-passe' : 'Password'}</Label>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder="********"
                   className={`pl-10 pr-10 h-12 ${activeForm.formState.errors.password ? 'border-destructive' : ''}`}
                   {...activeForm.register('password')}
                 />
@@ -213,10 +251,59 @@ const Auth = ({ mode }: AuthProps) => {
               )}
             </div>
 
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label>{language === 'pt-PT' ? 'Pacote' : 'Plan'}</Label>
+                <input type="hidden" {...registerForm.register('plan_id')} />
+                {isLoadingPlans ? (
+                  <p className="text-sm text-muted-foreground">{language === 'pt-PT' ? 'A carregar pacotes...' : 'Loading plans...'}</p>
+                ) : plans.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">{language === 'pt-PT' ? 'Sem pacotes disponiveis.' : 'No plans available.'}</p>
+                ) : (
+                  <RadioGroup
+                    value={selectedPlanId ? String(selectedPlanId) : ''}
+                    onValueChange={(value) => registerForm.setValue('plan_id', Number(value), { shouldValidate: true })}
+                    className="grid gap-3"
+                  >
+                    {plans.map((plan) => {
+                      const isPopular = Boolean((plan.metadata as { is_popular?: boolean } | null)?.is_popular) || plan.code === 'professional';
+                      const isSelected = String(selectedPlanId) === String(plan.id);
+                      return (
+                        <label
+                          key={plan.id}
+                          htmlFor={`plan-${plan.id}`}
+                          className={`flex items-start gap-3 rounded-lg border p-3 transition ${isSelected ? 'border-primary ring-1 ring-primary/30' : 'border-border/50'}`}
+                        >
+                          <RadioGroupItem id={`plan-${plan.id}`} value={String(plan.id)} className="mt-1" />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{plan.name}</span>
+                              {isPopular && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                  {language === 'pt-PT' ? 'Mais popular' : 'Most popular'}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">{plan.description || (language === 'pt-PT' ? 'Plano de subscricao' : 'Subscription plan')}</p>
+                          </div>
+                          <div className="text-sm font-semibold">
+                            {(plan.price_cents / 100).toLocaleString()} {plan.currency}/{plan.billing_interval === 'monthly' ? (language === 'pt-PT' ? 'mes' : 'mo') : (language === 'pt-PT' ? 'ano' : 'yr')}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </RadioGroup>
+                )}
+                {registerForm.formState.errors.plan_id && (
+                  <p className="text-xs text-destructive">{registerForm.formState.errors.plan_id.message}</p>
+                )}
+              </div>
+            )}
+
             {isLogin && twoFactorRequired && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="twoFactorCode">Authentication Code</Label>
+                  <Label htmlFor="twoFactorCode">{language === 'pt-PT' ? 'Codigo de autenticacao' : 'Authentication code'}</Label>
                   <Input
                     id="twoFactorCode"
                     type="text"
@@ -229,7 +316,7 @@ const Auth = ({ mode }: AuthProps) => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="recoveryCode">Recovery Code (optional)</Label>
+                  <Label htmlFor="recoveryCode">{language === 'pt-PT' ? 'Codigo de recuperacao (opcional)' : 'Recovery code (optional)'}</Label>
                   <Input
                     id="recoveryCode"
                     type="text"
@@ -243,7 +330,11 @@ const Auth = ({ mode }: AuthProps) => {
             )}
 
             <Button variant="hero" size="lg" className="w-full" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'A processar...' : isLogin ? 'Sign In' : 'Create Account'}
+              {isSubmitting
+                ? (language === 'pt-PT' ? 'A processar...' : 'Processing...')
+                : isLogin
+                  ? (language === 'pt-PT' ? 'Entrar' : 'Sign In')
+                  : (language === 'pt-PT' ? 'Criar conta' : 'Create account')}
               <ArrowRight className="w-5 h-5 ml-1" />
             </Button>
           </form>
@@ -251,16 +342,16 @@ const Auth = ({ mode }: AuthProps) => {
           <p className="text-center text-sm text-muted-foreground">
             {isLogin ? (
               <>
-                Don't have an account?{' '}
+                {language === 'pt-PT' ? 'Ainda nao tem conta?' : "Don't have an account?"}{' '}
                 <Link to="/register" className="text-primary font-medium hover:underline">
-                  Sign up for free
+                  {language === 'pt-PT' ? 'Registe-se gratuitamente' : 'Sign up for free'}
                 </Link>
               </>
             ) : (
               <>
-                Already have an account?{' '}
+                {language === 'pt-PT' ? 'Ja tem conta?' : 'Already have an account?'}{' '}
                 <Link to="/login" className="text-primary font-medium hover:underline">
-                  Sign in
+                  {language === 'pt-PT' ? 'Entrar' : 'Sign in'}
                 </Link>
               </>
             )}

@@ -189,6 +189,7 @@ const Clients = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Total Invoices</TableHead>
@@ -199,11 +200,12 @@ const Clients = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading clients...</TableCell>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Loading clients...</TableCell>
                   </TableRow>
                 ) : (
-                  filteredClients.map((client) => (
+                  filteredClients.map((client, index) => (
                     <TableRow key={client.id}>
+                      <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                       <TableCell>
                         <button
                           onClick={() => handleView(client)}

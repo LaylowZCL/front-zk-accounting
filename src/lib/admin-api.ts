@@ -24,6 +24,8 @@ export interface AdminUser {
   email: string;
   role: string;
   company: string;
+  company_id?: number | null;
+  is_platform_admin?: boolean;
   status: 'active' | 'blocked' | 'pending' | 'inactive';
   lastLogin: string;
   createdAt: string;
@@ -52,6 +54,7 @@ export interface AdminPlan {
   trial_days: number;
   is_active: boolean;
   features: string[] | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface AdminAnalyticsData {
@@ -62,6 +65,7 @@ export interface AdminAnalyticsData {
 
 export interface AdminTeamInvite {
   id: number;
+  account_id?: number | null;
   email: string;
   role: string;
   status: string;
@@ -120,6 +124,7 @@ export async function createAdminPlan(payload: {
   trial_days?: number;
   is_active?: boolean;
   features?: string[] | null;
+  metadata?: Record<string, unknown> | null;
 }) {
   return apiRequest<{ ok: boolean }>('/admin/plans', {
     method: 'POST',
@@ -137,6 +142,7 @@ export async function updateAdminPlan(
     trial_days: number;
     is_active: boolean;
     features: string[] | null;
+    metadata: Record<string, unknown> | null;
   }>
 ) {
   return apiRequest<{ ok: boolean }>(`/admin/plans/${id}`, {

@@ -1,30 +1,32 @@
 import { Link } from 'react-router-dom';
 import { Zap, Twitter, Linkedin, Github, Mail } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 const Footer = () => {
+  const { t, language } = useI18n();
   const footerLinks = {
     product: [
-      { name: 'Features', href: '#features' },
-      { name: 'Pricing', href: '#pricing' },
-      { name: 'Integrations', href: '#' },
+      { name: language === 'pt-PT' ? 'Funcionalidades' : 'Features', href: '#features' },
+      { name: language === 'pt-PT' ? 'Precos' : 'Pricing', href: '#pricing' },
+      { name: language === 'pt-PT' ? 'Integracoes' : 'Integrations', href: '#' },
       { name: 'API', href: '#' },
     ],
     company: [
-      { name: 'About', href: '#about' },
+      { name: language === 'pt-PT' ? 'Sobre' : 'About', href: '#about' },
       { name: 'Blog', href: '#' },
-      { name: 'Careers', href: '#' },
-      { name: 'Contact', href: '#' },
+      { name: language === 'pt-PT' ? 'Carreiras' : 'Careers', href: '#' },
+      { name: language === 'pt-PT' ? 'Contacto' : 'Contact', href: '#' },
     ],
     resources: [
-      { name: 'Documentation', href: '#' },
-      { name: 'Help Center', href: '#' },
-      { name: 'Templates', href: '#' },
-      { name: 'Tutorials', href: '#' },
+      { name: language === 'pt-PT' ? 'Documentacao' : 'Documentation', href: '#' },
+      { name: language === 'pt-PT' ? 'Centro de ajuda' : 'Help Center', href: '#' },
+      { name: language === 'pt-PT' ? 'Modelos' : 'Templates', href: '#' },
+      { name: language === 'pt-PT' ? 'Tutoriais' : 'Tutorials', href: '#' },
     ],
     legal: [
-      { name: 'Privacy', href: '#' },
-      { name: 'Terms', href: '#' },
-      { name: 'Security', href: '#' },
+      { name: language === 'pt-PT' ? 'Privacidade' : 'Privacy', href: '#' },
+      { name: language === 'pt-PT' ? 'Termos' : 'Terms', href: '#' },
+      { name: language === 'pt-PT' ? 'Seguranca' : 'Security', href: '#' },
       { name: 'Cookies', href: '#' },
     ],
   };
@@ -46,10 +48,10 @@ const Footer = () => {
               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center">
                 <Zap className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-display font-bold text-xl">BillFlow</span>
+              <span className="font-display font-bold text-xl">ZK Contabilidade</span>
             </Link>
             <p className="text-sm text-muted-foreground mb-6 max-w-xs">
-              The modern billing platform for businesses of all sizes. Create invoices, manage clients, and grow your business.
+              {t('footer.tagline')}
             </p>
             <div className="flex items-center gap-4">
               {socialLinks.map((social) => (
@@ -67,7 +69,7 @@ const Footer = () => {
 
           {/* Product Links */}
           <div>
-            <h4 className="font-semibold mb-4">Product</h4>
+            <h4 className="font-semibold mb-4">{language === 'pt-PT' ? 'Produto' : 'Product'}</h4>
             <ul className="space-y-3">
               {footerLinks.product.map((link) => (
                 <li key={link.name}>
@@ -81,7 +83,7 @@ const Footer = () => {
 
           {/* Company Links */}
           <div>
-            <h4 className="font-semibold mb-4">Company</h4>
+            <h4 className="font-semibold mb-4">{language === 'pt-PT' ? 'Empresa' : 'Company'}</h4>
             <ul className="space-y-3">
               {footerLinks.company.map((link) => (
                 <li key={link.name}>
@@ -95,7 +97,7 @@ const Footer = () => {
 
           {/* Resources Links */}
           <div>
-            <h4 className="font-semibold mb-4">Resources</h4>
+            <h4 className="font-semibold mb-4">{language === 'pt-PT' ? 'Recursos' : 'Resources'}</h4>
             <ul className="space-y-3">
               {footerLinks.resources.map((link) => (
                 <li key={link.name}>
@@ -109,7 +111,7 @@ const Footer = () => {
 
           {/* Legal Links */}
           <div>
-            <h4 className="font-semibold mb-4">Legal</h4>
+            <h4 className="font-semibold mb-4">{language === 'pt-PT' ? 'Legal' : 'Legal'}</h4>
             <ul className="space-y-3">
               {footerLinks.legal.map((link) => (
                 <li key={link.name}>
@@ -125,10 +127,11 @@ const Footer = () => {
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} BillFlow. All rights reserved.
+            © {new Date().getFullYear()} ZK Contabilidade. {t('footer.rights')}
           </p>
           <p className="text-sm text-muted-foreground">
-            Made with ❤️ for modern businesses
+            {t('footer.made_with')}{' '}
+            <a href="https://zki.co.mz" className="text-foreground hover:underline">ZK Interactive</a>
           </p>
         </div>
       </div>

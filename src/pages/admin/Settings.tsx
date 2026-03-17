@@ -14,7 +14,7 @@ import { getAdminSettings, updateAdminSettings } from '@/lib/admin-api';
 
 const AdminSettings = () => {
   const [general, setGeneral] = useState({
-    platformName: 'BillFlow',
+    platformName: 'ZK Contabilidade',
     supportEmail: 'support@billflow.com',
     platformDescription: 'Professional invoicing and billing platform for modern businesses.',
     defaultCurrency: 'USD',
@@ -25,7 +25,7 @@ const AdminSettings = () => {
     smtpHost: 'smtp.example.com',
     smtpPort: '587',
     smtpUser: 'noreply@billflow.com',
-    fromName: 'BillFlow',
+    fromName: 'ZK Contabilidade',
     fromEmail: 'noreply@billflow.com',
   });
 
@@ -65,7 +65,7 @@ const AdminSettings = () => {
 
         if (data.general) {
           setGeneral({
-            platformName: data.general.platform_name ?? 'BillFlow',
+            platformName: data.general.platform_name ?? 'ZK Contabilidade',
             supportEmail: data.general.support_email ?? 'support@billflow.com',
             platformDescription: data.general.platform_description ?? 'Professional invoicing and billing platform for modern businesses.',
             defaultCurrency: data.general.default_currency ?? 'USD',
@@ -78,7 +78,7 @@ const AdminSettings = () => {
             smtpHost: data.email.smtp_host ?? 'smtp.example.com',
             smtpPort: data.email.smtp_port ?? '587',
             smtpUser: data.email.smtp_user ?? 'noreply@billflow.com',
-            fromName: data.email.from_name ?? 'BillFlow',
+            fromName: data.email.from_name ?? 'ZK Contabilidade',
             fromEmail: data.email.from_email ?? 'noreply@billflow.com',
           });
         }

@@ -49,6 +49,7 @@ import InvoiceFormDialog from '@/components/documents/InvoiceFormDialog';
 import DocumentViewDialog from '@/components/documents/DocumentViewDialog';
 import { Client, Invoice, Product } from '@/types/documents';
 import { toast } from 'sonner';
+import { useI18n } from '@/lib/i18n';
 import { convertInvoiceToReceipt, deleteInvoice, duplicateInvoice, getSettings, getWorkspaceDocumentDownloadUrl, listClients, listInvoices, listProducts, saveInvoice, sendWorkspaceDocument } from '@/lib/business-api';
 import { formatMoney } from '@/lib/currency';
 
@@ -71,6 +72,7 @@ const paymentMethodOptions = [
 ];
 
 const Invoices = () => {
+  const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -237,7 +239,7 @@ const Invoices = () => {
     <div className="flex min-h-screen bg-background">
       <Sidebar userType="client" />
       <div className="flex-1 flex flex-col">
-        <DashboardHeader title="Invoices" />
+        <DashboardHeader title={t('nav.invoices')} />
         <main className="flex-1 p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -265,6 +267,7 @@ const Invoices = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>Invoice</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Date</TableHead>
@@ -276,10 +279,11 @@ const Invoices = () => {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Loading invoices...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Loading invoices...</TableCell></TableRow>
                 ) : (
-                  filteredInvoices.map((invoice) => (
+                  filteredInvoices.map((invoice, index) => (
                     <TableRow key={invoice.id}>
+                      <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                       <TableCell>
                         <button onClick={() => handleView(invoice)} className="flex items-center gap-2 hover:text-primary transition-colors">
                           <FileText className="w-4 h-4 text-muted-foreground" />

@@ -1,16 +1,29 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Menu, X, Zap } from 'lucide-react';
+import ThemeToggle from '@/components/ui/theme-toggle';
+import { useAuth } from '@/contexts/AuthContext';
+import { useI18n } from '@/lib/i18n';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const { isAuthenticated, logout, user } = useAuth();
+  const { language, setLanguage, t } = useI18n();
+  const navigate = useNavigate();
 
   const navLinks = [
-    { name: 'Features', href: '#features' },
-    { name: 'Pricing', href: '#pricing' },
-    { name: 'About', href: '#about' },
+    { name: t('nav.features'), href: '#features' },
+    { name: t('nav.pricing'), href: '#pricing' },
+    { name: t('nav.about'), href: '#about' },
   ];
+
+  const handleSignOut = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  const accountPath = user?.is_platform_admin ? '/admin/dashboard' : '/dashboard';
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
@@ -21,7 +34,7 @@ const Navbar = () => {
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center">
               <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-display font-bold text-xl text-foreground">BillFlow</span>
+            <span className="font-display font-bold text-xl text-foreground">ZK Contabilidade</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -39,12 +52,33 @@ const Navbar = () => {
 
           {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" asChild>
-              <Link to="/login">Sign In</Link>
+            <ThemeToggle />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLanguage(language === 'pt-PT' ? 'en' : 'pt-PT')}
+            >
+              {language === 'pt-PT' ? 'EN' : 'PT'}
             </Button>
-            <Button variant="gradient" asChild>
-              <Link to="/register">Get Started</Link>
-            </Button>
+            {isAuthenticated ? (
+              <>
+                <Button variant="ghost" onClick={handleSignOut}>
+                  {t('nav.sign_out')}
+                </Button>
+                <Button variant="gradient" asChild>
+                  <Link to={accountPath}>{t('nav.your_account')}</Link>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link to="/login">{t('nav.sign_in')}</Link>
+                </Button>
+                <Button variant="gradient" asChild>
+                  <Link to="/register">{t('nav.get_started')}</Link>
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -71,12 +105,35 @@ const Navbar = () => {
                 </a>
               ))}
               <div className="flex flex-col gap-2 pt-4 border-t border-border/50">
-                <Button variant="ghost" asChild className="justify-start">
-                  <Link to="/login">Sign In</Link>
-                </Button>
-                <Button variant="gradient" asChild>
-                  <Link to="/register">Get Started</Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <ThemeToggle size="sm" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLanguage(language === 'pt-PT' ? 'en' : 'pt-PT')}
+                  >
+                    {language === 'pt-PT' ? 'EN' : 'PT'}
+                  </Button>
+                </div>
+                {isAuthenticated ? (
+                  <>
+                    <Button variant="ghost" className="justify-start" onClick={handleSignOut}>
+                      {t('nav.sign_out')}
+                    </Button>
+                    <Button variant="gradient" asChild>
+                      <Link to={accountPath}>{t('nav.your_account')}</Link>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="ghost" asChild className="justify-start">
+                      <Link to="/login">{t('nav.sign_in')}</Link>
+                    </Button>
+                    <Button variant="gradient" asChild>
+                      <Link to="/register">{t('nav.get_started')}</Link>
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>

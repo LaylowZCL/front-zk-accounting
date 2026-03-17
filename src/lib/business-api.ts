@@ -1,11 +1,11 @@
-import { apiRequestFirst } from '@/lib/api';
+import { apiRequestBlob, apiRequestFirst } from '@/lib/api';
 import type { Client, Invoice, Product, Quotation, Receipt } from '@/types/documents';
 
 export interface TeamMember {
   id: string;
   name: string;
   email: string;
-  role: 'owner' | 'employee';
+  role: 'owner' | 'counter' | 'employee';
   status: 'active' | 'pending' | 'inactive';
   invitedAt: string;
   joinedAt?: string;
@@ -53,6 +53,12 @@ export interface SettingsPayload {
     phone?: string;
     email?: string;
     currency?: string;
+    currency_position?: 'prefix' | 'suffix';
+    industry?: string;
+    website?: string;
+    city?: string;
+    country?: string;
+    registration_number?: string;
     logo?: string;
     logo_url?: string;
   };
@@ -172,15 +178,15 @@ const getDocumentPk = (payload: Partial<Invoice | Quotation | Receipt>) => {
 
 export async function completeCompanySetup(payload: {
   company_name: string;
-  industry?: string;
-  website?: string;
-  email?: string;
+  tax_id?: string;
   phone?: string;
+  email?: string;
   address?: string;
   city?: string;
   country?: string;
-  tax_number?: string;
-  registration_number?: string;
+  industry?: string;
+  website?: string;
+  billing_email?: string;
   logo?: string;
   currency?: string;
 }) {
@@ -233,7 +239,11 @@ export async function listTeamMembers() {
   const response = await apiRequestFirst<ApiList<TeamMember> | TeamMember[]>(['/workspace/team']);
   return unwrapList(response).map((member) => ({
     ...member,
-    role: String(member.role).includes('owner') ? 'owner' : 'employee',
+    role: String(member.role).includes('owner')
+      ? 'owner'
+      : String(member.role).includes('counter') || String(member.role).includes('accountant')
+        ? 'counter'
+        : 'employee',
     status: member.status === 'active' ? 'active' : (member.status === 'pending' ? 'pending' : 'inactive'),
   })) as TeamMember[];
 }
@@ -247,12 +257,21 @@ export async function resendTeamInvitation(invitationId: string) {
   await apiRequestFirst<{ ok: boolean }>([`/workspace/team/invitations/${id}/resend`], postJson({}));
 }
 
+export async function revokeTeamInvitation(invitationId: string) {
+  const id = invitationId.replace('invite-', '');
+  await apiRequestFirst<{ ok: boolean }>([`/workspace/team/invitations/${id}/revoke`], postJson({}));
+}
+
 export async function updateTeamMember(id: string, payload: Partial<TeamMember>) {
   await apiRequestFirst<{ ok: boolean }>([`/workspace/team/members/${id}`], patchJson(payload));
 }
 
 export async function deleteTeamMember(id: string) {
   await apiRequestFirst<{ ok: boolean }>([`/workspace/team/members/${id}`], { method: 'DELETE' });
+}
+
+export async function downloadDocumentPdf(documentId: string | number) {
+  return apiRequestBlob(`/workspace/documents/${documentId}/download.pdf`, { method: 'GET' });
 }
 
 export async function listInvoices() {
@@ -530,7 +549,3 @@ export async function getWorkspaceEntitlements() {
   const response = await apiRequestFirst<ApiEnvelope<WorkspaceEntitlements>>(['/workspace/entitlements']);
   return response.data;
 }
-
-
-
-

@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, CheckCircle2, Play } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 const HeroSection = () => {
+  const { t } = useI18n();
   const features = [
-    'Unlimited invoices & quotes',
-    'Multi-user access',
-    'Real-time analytics',
+    t('hero.feature_1'),
+    t('hero.feature_2'),
+    t('hero.feature_3'),
   ];
 
   return (
@@ -24,19 +26,18 @@ const HeroSection = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
             </span>
-            Trusted by 10,000+ businesses worldwide
+            {t('hero.badge')}
           </div>
 
           {/* Headline */}
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight mb-6 animate-fade-up" style={{ animationDelay: '0.1s' }}>
-            Billing Made{' '}
-            <span className="gradient-text">Effortless</span>
-            {' '}for Modern Teams
+            {t('hero.title_1')}{' '}
+            <span className="gradient-text">{t('hero.title_2')}</span>
           </h1>
 
           {/* Subheadline */}
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-up" style={{ animationDelay: '0.2s' }}>
-            Create professional invoices, manage clients, and track payments—all in one powerful platform designed for growing businesses.
+            {t('hero.subtitle')}
           </p>
 
           {/* Feature List */}
@@ -53,21 +54,21 @@ const HeroSection = () => {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-up" style={{ animationDelay: '0.4s' }}>
             <Button variant="hero" size="xl" asChild>
               <Link to="/register">
-                Start Free Trial
+                {t('hero.cta_primary')}
                 <ArrowRight className="w-5 h-5 ml-1" />
               </Link>
             </Button>
             <Button variant="hero-outline" size="xl" asChild>
               <a href="#demo">
                 <Play className="w-5 h-5 mr-1" />
-                Watch Demo
+                {t('hero.cta_secondary')}
               </a>
             </Button>
           </div>
 
           {/* Social Proof */}
           <div className="mt-12 pt-12 border-t border-border/50 animate-fade-up" style={{ animationDelay: '0.5s' }}>
-            <p className="text-sm text-muted-foreground mb-6">Trusted by innovative companies</p>
+            <p className="text-sm text-muted-foreground mb-6">{t('hero.trusted')}</p>
             <div className="flex items-center justify-center gap-8 opacity-60 grayscale">
               {['TechCorp', 'StartupX', 'FinanceHub', 'GrowthCo', 'CloudBase'].map((company) => (
                 <div key={company} className="font-display font-bold text-lg text-muted-foreground">

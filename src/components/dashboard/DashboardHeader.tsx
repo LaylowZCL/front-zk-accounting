@@ -8,6 +8,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import ThemeToggle from '@/components/ui/theme-toggle';
+import { useI18n } from '@/lib/i18n';
 
 type HeaderFilterOption = {
   value: string;
@@ -54,6 +56,7 @@ const DashboardHeader = ({
   onNotificationClick,
 }: DashboardHeaderProps) => {
   const [localSearch, setLocalSearch] = useState(searchValue ?? '');
+  const { t } = useI18n();
 
   useEffect(() => {
     setLocalSearch(searchValue ?? '');
@@ -76,10 +79,11 @@ const DashboardHeader = ({
           </div>
 
           <div className="flex items-center gap-2 lg:gap-3">
+            <ThemeToggle />
             <div className="relative flex-1 min-w-[160px] lg:min-w-[280px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search"
+                placeholder={t('header.search')}
                 className="pl-9 h-10 border-border/80 bg-card rounded-full"
                 value={localSearch}
                 onChange={(event) => handleSearchChange(event.target.value)}
@@ -99,11 +103,11 @@ const DashboardHeader = ({
                 {filterOptions.length ? (
                   filterOptions.map((option) => (
                     <DropdownMenuItem key={option.value} onClick={() => onFilterChange?.(option.value)}>
-                      {option.label}{activeFilter === option.value ? ' (Selected)' : ''}
+                      {option.label}{activeFilter === option.value ? t('header.filters.selected') : ''}
                     </DropdownMenuItem>
                   ))
                 ) : (
-                  <DropdownMenuItem disabled>No filters available</DropdownMenuItem>
+                  <DropdownMenuItem disabled>{t('header.filters.none')}</DropdownMenuItem>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -129,7 +133,7 @@ const DashboardHeader = ({
                     </DropdownMenuItem>
                   ))
                 ) : (
-                  <DropdownMenuItem disabled>No notifications</DropdownMenuItem>
+                  <DropdownMenuItem disabled>{t('header.notifications.none')}</DropdownMenuItem>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>

@@ -72,6 +72,7 @@ const AdminTeam = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
@@ -80,12 +81,13 @@ const AdminTeam = () => {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Loading invitations...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading invitations...</TableCell></TableRow>
                 ) : filteredInvites.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No invitations found.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No invitations found.</TableCell></TableRow>
                 ) : (
-                  filteredInvites.map((member) => (
+                  filteredInvites.map((member, index) => (
                     <TableRow key={member.id}>
+                      <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                       <TableCell className="font-medium">{member.email}</TableCell>
                       <TableCell>{member.role}</TableCell>
                       <TableCell>

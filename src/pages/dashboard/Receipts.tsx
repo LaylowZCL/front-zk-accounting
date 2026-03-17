@@ -33,10 +33,12 @@ import ReceiptFormDialog from '@/components/documents/ReceiptFormDialog';
 import DocumentViewDialog from '@/components/documents/DocumentViewDialog';
 import { Client, Invoice, Receipt } from '@/types/documents';
 import { toast } from 'sonner';
+import { useI18n } from '@/lib/i18n';
 import { deleteReceipt, duplicateReceipt, getSettings, getWorkspaceDocumentDownloadUrl, listClients, listInvoices, listReceipts, saveReceipt, sendWorkspaceDocument } from '@/lib/business-api';
 import { formatMoney } from '@/lib/currency';
 
 const Receipts = () => {
+  const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -153,7 +155,7 @@ const Receipts = () => {
     <div className="flex min-h-screen bg-background">
       <Sidebar userType="client" />
       <div className="flex-1 flex flex-col">
-        <DashboardHeader title="Receipts" />
+        <DashboardHeader title={t('nav.receipts')} />
         <main className="flex-1 p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -181,6 +183,7 @@ const Receipts = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>Receipt</TableHead>
                   <TableHead>Invoice</TableHead>
                   <TableHead>Client</TableHead>
@@ -192,10 +195,11 @@ const Receipts = () => {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Loading receipts...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Loading receipts...</TableCell></TableRow>
                 ) : (
-                  filteredReceipts.map((receipt) => (
+                  filteredReceipts.map((receipt, index) => (
                     <TableRow key={receipt.id}>
+                      <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                       <TableCell>
                         <button onClick={() => handleView(receipt)} className="flex items-center gap-2 hover:text-primary transition-colors">
                           <ReceiptIcon className="w-4 h-4 text-muted-foreground" />

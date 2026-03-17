@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { LanguageProvider } from "./lib/i18n";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import CompanySetup from "./pages/CompanySetup";
@@ -28,6 +29,9 @@ import AdminSettings from "./pages/admin/Settings";
 import AdminSecurity from "./pages/admin/Security";
 import DashboardTeam from "./pages/dashboard/Team";
 import DashboardSecurity from "./pages/dashboard/Security";
+import AcceptInvite from "./pages/AcceptInvite";
+import Checkout from "./pages/Checkout";
+import BillingLocked from "./pages/BillingLocked";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import GuestRoute from "./components/auth/GuestRoute";
 
@@ -38,9 +42,10 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
+      <LanguageProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
             <Route path="/" element={<Index />} />
             <Route element={<GuestRoute />}>
               <Route path="/login" element={<Auth mode="login" />} />
@@ -48,6 +53,7 @@ const App = () => (
             </Route>
 
             <Route element={<ProtectedRoute />}>
+              <Route path="/accept-invite" element={<AcceptInvite />} />
               <Route path="/setup" element={<CompanySetup />} />
               <Route path="/dashboard" element={<ClientDashboard />} />
               <Route path="/dashboard/clients" element={<Clients />} />
@@ -61,6 +67,8 @@ const App = () => (
               <Route path="/dashboard/settings" element={<Settings />} />
               <Route path="/dashboard/team" element={<DashboardTeam />} />
               <Route path="/dashboard/security" element={<DashboardSecurity />} />
+              <Route path="/checkout" element={<Checkout />} />
+              <Route path="/billing-locked" element={<BillingLocked />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/team" element={<AdminTeam />} />
@@ -73,9 +81,10 @@ const App = () => (
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </LanguageProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

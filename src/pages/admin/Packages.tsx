@@ -25,6 +25,7 @@ const emptyForm = {
   trialDays: '0',
   features: '',
   isActive: true,
+  isPopular: false,
 };
 
 const Packages = () => {
@@ -67,6 +68,7 @@ const Packages = () => {
       trialDays: String(plan.trial_days),
       features: (plan.features ?? []).join('\n'),
       isActive: plan.is_active,
+      isPopular: Boolean((plan.metadata as { is_popular?: boolean } | null)?.is_popular),
     });
     setEditDialogOpen(true);
   };
@@ -101,6 +103,7 @@ const Packages = () => {
           billing_interval: form.billingInterval,
           trial_days: Number(form.trialDays || 0),
           is_active: form.isActive,
+          metadata: { is_popular: form.isPopular },
           features,
         });
         toast.success('Plan updated');
@@ -114,6 +117,7 @@ const Packages = () => {
           billing_interval: form.billingInterval,
           trial_days: Number(form.trialDays || 0),
           is_active: form.isActive,
+          metadata: { is_popular: form.isPopular },
           features,
         });
         toast.success('Plan created');
@@ -238,6 +242,13 @@ const Packages = () => {
                   <option value="yearly">Yearly</option>
                 </select>
               </div>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-border/50 p-3">
+              <div>
+                <p className="text-sm font-medium">Most Popular</p>
+                <p className="text-xs text-muted-foreground">Destacar este pacote na landing page</p>
+              </div>
+              <Switch checked={form.isPopular} onCheckedChange={(checked) => setForm((v) => ({ ...v, isPopular: checked }))} />
             </div>
             <div className="space-y-2">
               <Label>Trial Days</Label>

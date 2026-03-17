@@ -195,6 +195,7 @@ const Products = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>Product/Service</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Price</TableHead>
@@ -205,11 +206,12 @@ const Products = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading products...</TableCell>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Loading products...</TableCell>
                   </TableRow>
                 ) : (
-                  filteredProducts.map((product) => (
+                  filteredProducts.map((product, index) => (
                     <TableRow key={product.id}>
+                      <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                       <TableCell>
                         <button onClick={() => openForm(product)} className="text-left hover:text-primary transition-colors">
                           <p className="font-medium hover:underline">{product.name}</p>

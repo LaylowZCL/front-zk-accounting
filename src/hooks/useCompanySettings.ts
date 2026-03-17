@@ -3,7 +3,7 @@ import { getSettings } from '@/lib/business-api';
 import { normalizeCurrency } from '@/lib/currency';
 
 export interface CompanySettings {
-  company_name?: string;
+  name?: string;
   tax_id?: string;
   tax_number?: string;
   email?: string;
@@ -30,7 +30,7 @@ export const useCompanySettings = () => {
         
         // Mapear os campos da API para o formato esperado
         const mappedSettings: CompanySettings = {
-          company_name: (companyData as any).company_name || companyData.name,
+          name: companyData.name || (companyData as any).company_name,
           tax_id: companyData.tax_number,
           email: companyData.email,
           phone: companyData.phone,
@@ -57,5 +57,4 @@ export const useCompanySettings = () => {
 
   return { settings, loading, error };
 };
-
 

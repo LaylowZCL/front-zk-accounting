@@ -2,65 +2,21 @@ import { Check, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { fetchPlans, getToken, startCheckout, type Plan } from '@/lib/api';
-import { toast } from 'sonner';
-
-const fallbackPlans = [
-  {
-    id: 1,
-    name: 'Starter',
-    description: 'Perfect for freelancers and small businesses',
-    price: 19,
-    features: [
-      'Up to 50 invoices/month',
-      '5 clients',
-      'Basic templates',
-      'Email support',
-      'PDF exports',
-    ],
-    cta: 'Start Free Trial',
-    popular: false,
-  },
-  {
-    id: 2,
-    name: 'Professional',
-    description: 'Ideal for growing businesses and teams',
-    price: 49,
-    features: [
-      'Unlimited invoices',
-      'Unlimited clients',
-      'Custom templates',
-      'Priority support',
-      'Team collaboration (3 users)',
-      'Advanced analytics',
-      'Recurring invoices',
-    ],
-    cta: 'Start Free Trial',
-    popular: true,
-  },
-  {
-    id: 3,
-    name: 'Enterprise',
-    description: 'For large organizations with custom needs',
-    price: 99,
-    features: [
-      'Everything in Professional',
-      'Unlimited team members',
-      'Custom integrations',
-      'Dedicated account manager',
-      'SLA guarantee',
-      'Custom branding',
-      'API access',
-      'Advanced security',
-    ],
-    cta: 'Contact Sales',
-    popular: false,
-  },
-];
+import { fetchPlans, type Plan } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 
 const PricingSection = () => {
   const navigate = useNavigate();
-  const [plans, setPlans] = useState(fallbackPlans);
+  const { t } = useI18n();
+  const [plans, setPlans] = useState<Array<{
+    id: number;
+    name: string;
+    description: string;
+    price: number;
+    features: string[];
+    cta: string;
+    popular: boolean;
+  }>>([]);
   const [loadingPlanId, setLoadingPlanId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -73,47 +29,19 @@ const PricingSection = () => {
           price: plan.price_cents / 100,
           features: plan.features && plan.features.length > 0 ? plan.features : ['Billing access'],
           cta: 'Start Free Trial',
-          popular: plan.code === 'professional',
+          popular: Boolean((plan.metadata as { is_popular?: boolean } | null)?.is_popular) || plan.code === 'professional',
         }));
         if (mapped.length > 0) setPlans(mapped);
       })
       .catch(() => {
-        // Keep fallback list if API is unavailable.
+        setPlans([]);
       });
   }, []);
 
   const handleCheckout = async (planId?: number) => {
-    if (!planId) {
-      navigate('/register');
-      return;
-    }
-
-    const token = getToken();
-    if (!token) {
-      toast.info('Cria conta ou faz login para continuar');
-      navigate('/register');
-      return;
-    }
-
-    setLoadingPlanId(planId);
-    try {
-      const response = await startCheckout({
-        plan_id: planId,
-        payment_type: 'REFERENCE',
-      });
-
-      if (response?.data?.checkout_url) {
-        window.location.href = response.data.checkout_url;
-        return;
-      }
-
-      toast.error('Checkout indisponível de momento');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao iniciar checkout';
-      toast.error(message);
-    } finally {
-      setLoadingPlanId(null);
-    }
+    setLoadingPlanId(planId ?? null);
+    navigate(planId ? `/register?plan=${planId}` : '/register');
+    setLoadingPlanId(null);
   };
 
   return (
@@ -122,20 +50,22 @@ const PricingSection = () => {
         {/* Section Header */}
         <div className="max-w-3xl mx-auto text-center mb-16">
           <span className="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
-            Pricing
+            {t('pricing.badge')}
           </span>
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold mb-6">
-            Simple, Transparent{' '}
-            <span className="gradient-text">Pricing</span>
+            {t('pricing.title_1')}{' '}
+            <span className="gradient-text">{t('pricing.title_2')}</span>
           </h2>
           <p className="text-lg text-muted-foreground">
-            Choose the perfect plan for your business. All plans include a 14-day free trial.
+            {t('pricing.subtitle')}
           </p>
         </div>
 
         {/* Pricing Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {plans.map((plan) => (
+          {plans.length === 0 ? (
+            <div className="col-span-full text-center text-muted-foreground">{t('pricing.no_plans')}</div>
+          ) : plans.map((plan) => (
             <div
               key={plan.name}
               className={`relative rounded-2xl p-8 ${
@@ -171,7 +101,7 @@ const PricingSection = () => {
                 disabled={loadingPlanId === plan.id}
                 onClick={() => handleCheckout(plan.id)}
               >
-                <span>{plan.cta}</span>
+                <span>{t('pricing.cta')}</span>
               </Button>
 
               <ul className="space-y-3">

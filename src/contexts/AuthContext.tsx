@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { ApiError, ApiUser, authLogout, authMe, clearAuth, getToken, getUser, setToken, setUnauthorizedHandler, setUser } from '@/lib/api';
+import { ApiError, ApiUser, authLogout, authMe, clearAuth, getToken, getUser, isCookieAuth, setToken, setUnauthorizedHandler, setUser } from '@/lib/api';
 
 interface AuthContextValue {
   user: ApiUser | null;
@@ -7,22 +7,24 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   setSession: (token: string, user: ApiUser) => void;
+  refreshUser: () => Promise<ApiUser | null>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const usesCookieAuth = isCookieAuth();
   const [token, setTokenState] = useState<string | null>(getToken());
   const [user, setUserState] = useState<ApiUser | null>(getUser());
-  const [isLoading, setIsLoading] = useState(Boolean(getToken()));
+  const [isLoading, setIsLoading] = useState(Boolean(getToken()) || usesCookieAuth);
 
   const setSession = useCallback((nextToken: string, nextUser: ApiUser) => {
     setToken(nextToken);
     setUser(nextUser);
-    setTokenState(nextToken);
+    setTokenState(usesCookieAuth ? null : nextToken);
     setUserState(nextUser);
-  }, []);
+  }, [usesCookieAuth]);
 
   const resetSession = useCallback(() => {
     clearAuth();
@@ -30,9 +32,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUserState(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const me = await authMe();
+      setUser(me);
+      setUserState(me);
+      return me;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
-      if (getToken()) {
+      if (getToken() || usesCookieAuth) {
         await authLogout();
       }
     } catch {
@@ -52,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const bootstrap = async () => {
       const existingToken = getToken();
-      if (!existingToken) {
+      if (!existingToken && !usesCookieAuth) {
         setIsLoading(false);
         return;
       }
@@ -82,12 +95,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       token,
-      isAuthenticated: Boolean(token && user),
+      isAuthenticated: Boolean((usesCookieAuth ? user : token && user)),
       isLoading,
       setSession,
+      refreshUser,
       logout,
     }),
-    [isLoading, logout, setSession, token, user]
+    [isLoading, logout, refreshUser, setSession, token, user, usesCookieAuth]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from '@/components/dashboard/Sidebar';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import StatCard from '@/components/dashboard/StatCard';
+import TrialBanner from '@/components/ui/trial-banner';
 import { FileText, Users, CreditCard, TrendingUp, Clock, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -11,6 +12,7 @@ import { DashboardSummary, getDashboardSummary, getSettings } from '@/lib/busine
 import { formatMoney } from '@/lib/currency';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useI18n } from '@/lib/i18n';
 
 const fallbackSummary: DashboardSummary = {
   totalRevenue: 45230,
@@ -56,6 +58,7 @@ const chartConfig = {
 const ClientDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, language } = useI18n();
   const [summary, setSummary] = useState<DashboardSummary>(fallbackSummary);
   const [currency, setCurrency] = useState('MT');
   const [headerSearch, setHeaderSearch] = useState('');
@@ -109,11 +112,15 @@ const ClientDashboard = () => {
       <Sidebar userType="client" />
 
       <div className="flex-1 flex flex-col overflow-hidden pb-6">
+        <TrialBanner />
+        
         <DashboardHeader
-          title="Dashboard"
-          subtitle={`Welcome back, ${user?.name?.split(' ')[0] || 'User'}`}
+          title={t('nav.dashboard')}
+          subtitle={language === 'pt-PT'
+            ? `Bem-vindo, ${user?.name?.split(' ')[0] || 'Utilizador'}`
+            : `Welcome back, ${user?.name?.split(' ')[0] || 'User'}`}
           showCreateButton
-          createButtonLabel="New Invoice"
+          createButtonLabel={language === 'pt-PT' ? 'Nova fatura' : 'New invoice'}
           onCreateClick={handleNewInvoice}
           searchValue={headerSearch}
           onSearchChange={setHeaderSearch}
@@ -242,4 +249,3 @@ const ClientDashboard = () => {
 };
 
 export default ClientDashboard;
-

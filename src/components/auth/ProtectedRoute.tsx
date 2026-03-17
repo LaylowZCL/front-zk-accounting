@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { getWorkspaceEntitlements, WorkspaceEntitlements } from '@/lib/business-api';
+import { isOwner as isOwnerRole } from '@/lib/roles';
 
 const ProtectedRoute = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -11,7 +12,7 @@ const ProtectedRoute = () => {
 
   useEffect(() => {
     const load = async () => {
-      if (!isAuthenticated || user?.is_platform_admin) {
+      if (!isAuthenticated || user?.is_platform_admin || user?.status === 'invited') {
         setIsLoadingEntitlements(false);
         return;
       }
@@ -28,7 +29,7 @@ const ProtectedRoute = () => {
     };
 
     load();
-  }, [isAuthenticated, user?.is_platform_admin, location.pathname]);
+  }, [isAuthenticated, user?.is_platform_admin, user?.roles, location.pathname]);
 
   if (isLoading) {
     return (
@@ -42,6 +43,10 @@ const ProtectedRoute = () => {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
+  if (user?.status === 'invited' && location.pathname !== '/accept-invite') {
+    return <Navigate to="/accept-invite" replace state={{ from: location }} />;
+  }
+
   if (!user?.is_platform_admin && isLoadingEntitlements) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -50,7 +55,18 @@ const ProtectedRoute = () => {
     );
   }
 
-  if (!user?.is_platform_admin && entitlements) {
+  if (!user?.is_platform_admin && user?.status !== 'invited' && entitlements) {
+    if (!entitlements.billing_good_standing) {
+      const owner = isOwnerRole(user?.roles);
+      if (owner && location.pathname !== '/checkout') {
+        const planParam = entitlements.active_plan_id ? `?plan=${entitlements.active_plan_id}` : '';
+        return <Navigate to={`/checkout${planParam}`} replace />;
+      }
+      if (!owner && location.pathname !== '/billing-locked') {
+        return <Navigate to="/billing-locked" replace />;
+      }
+    }
+
     if (!entitlements.company_setup_completed && location.pathname !== '/setup') {
       return <Navigate to="/setup" replace state={{ from: location }} />;
     }
@@ -64,4 +80,3 @@ const ProtectedRoute = () => {
 };
 
 export default ProtectedRoute;
-
